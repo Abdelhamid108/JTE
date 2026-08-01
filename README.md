@@ -1,1 +1,1 @@
-# JTE
+# JTEJenkins Templates repo
