@@ -1,30 +1,31 @@
 // steps/checkout.groovy
-def call (Map config = [:]){
-    def isRemote = config.isRemote ?: false
-    def targetDir = config.dir ?: '.'
+void call (){
+    String repoUrl = config.repoUrl ?: 'LOCAL'
+    String gitCreds = config.gitCreds ?: 'NONE'
+    String branchName = config.terraformBranchName ?: 'main'
 
-    dir (targetDir){
-        if (isRemote){
-            def repoUrl = config.url
-            def branchName = config.branchName ?: 'main'
-            def creds = config.credentialsId 
-
-            if (!repoUrl){
-                error "You must specify repository url"
+    if (repoUrl != 'LOCAL'){
+        println "Checking out remote repository: ${repoUrl} (branch ${branchName})"
+            if ( gitCreds != 'NONE'){
+                checkout ([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${branchName}"]],
+                    userRemoteConfigs: [[
+                        url: repoUrl,
+                        credentialsId: gitCreds
+                    ]]
+                ])
+            } else{
+                checkout ([
+                    $class: 'GitSCM',
+                    branches: [[name: "*/${branchName}"]],
+                    userRemoteConfigs: [[
+                        url: repoUrl
+                    ]]
+                ])
             }
-            
-            println "Checking out remote repository: ${repoUrl} (branch ${branchName})"
-            checkout ([
-                $class: 'GitSCM',
-                branches: [[name: "*/${branchName}"]],
-                userRemoteConfigs: [[
-                    url: repoUrl,
-                    credentialsId: creds
-                ]]
-            ])
-        } else{
-            println "Checking out current repository code..."
-            checkout scm
-        }
+
+    }  else {
+        echo "No remote repo defined. Using local project workspace."
     }
 }

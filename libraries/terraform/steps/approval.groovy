@@ -1,9 +1,9 @@
-// steps/approval.groovy
+    // steps/approval.groovy
 
-def call (Map config = [:]){
-    def action = config.action ?: 'Deploy'
+    void call (Map config = [:]){
+    boolean isDestroy = config.is_destroy ? config.is_destroy.toString().toBoolean() : false  
+    String action = isDestroy ? "DESTROY Infrastructure" : "DEPLOY Infrastructure"
 
-    timeout(time: 10, unit: 'MINUTES'){
-        input message:"Approve Terraform ${action} ?", ok: "proceed"
+    input message:"Approve Terraform ${action} ?", ok: "proceed"
+        
     }
-}
