@@ -18,7 +18,6 @@ pipeline {
         }
         
         stage('Install Dependencies') {
-            // FIX 1: Added 'expression { ... }'
             when { 
                 expression { return pipelineConfig.terraform?.install_tools == true }
             }
