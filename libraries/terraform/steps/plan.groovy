@@ -1,26 +1,35 @@
 // steps/plan.groovy
  void call () {
-    // defaults to current directory if not provided
-    String targetDir = config.infra_dir ?: '.'
-    String varFile = config.tf_vars ? "-var-file=${config.tf_vars}" : ""
+    String targetDir  = config.infra_dir ?: '.'
+    String tfVarsCred = config.tf_vars ?: 'NONE'
     String cloudCreds = config.cloud_creds ?: 'NONE'
     boolean isDestroy = config.is_destroy ? config.is_destroy.toString().toBoolean() : false  
 
     def runPlan = {
-        String destroyFlag = isDestroy ? "-destroy" : "" //check if the flage isDestroy - true to run with -destroy flag
-
+        String destroyFlag = isDestroy ? "-destroy" : ""
         def planName = "tfplan-${env.BUILD_ID}-${System.currentTimeMillis()}.tfplan"
 
-        println "Generating Trraform Plan ...."
-        dir(targetDir){
-            sh "terraform plan ${varFile} ${isDestroy} -out=${planName} -input=false"
-            archiveArtifacts artifacts: planName, allowEmptyArchive: false
-            env.TF_PLAN_FILE = planName
+        def executePlan = { String varFileFlag ->
+            println "Generating Terraform Plan ...."
+            dir(targetDir){
+                sh "terraform plan ${varFileFlag} ${destroyFlag} -out=${planName} -input=false"
+                archiveArtifacts artifacts: planName, allowEmptyArchive: false
+                env.TF_PLAN_FILE = planName
+            }
+        }
+
+        if (tfVarsCred != 'NONE') {
+            withCredentials([file(credentialsId: tfVarsCred, variable: 'TF_VARS_FILE')]) {
+                executePlan("-var-file=\${TF_VARS_FILE}")
+            }
+        } else {
+            executePlan("")
         }
     }
-    if ( cloudCreds != 'NONE'){
-        withCredentials([string(credentialsId: cloudCreds, variable: 'CLOUD_TOKEN')]) { runPlan() }
-    } else{
-        runPlan ()
+
+    if (cloudCreds != 'NONE') {
+        withCredentials([usernamePassword(credentialsId: cloudCreds, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) { runPlan() }
+    } else {
+        runPlan()
     }
  }

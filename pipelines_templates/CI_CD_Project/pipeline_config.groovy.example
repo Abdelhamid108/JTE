@@ -7,8 +7,9 @@ template_sources {
 libraries {
     terraform {
 
-        infra_dir           = '.'
-        terraformBranchName = 'main'
+        infra_dir           = 'infrastructure'
+        tf_vars             = 'terraform_tfvars'
+        cloud_creds         = 'aws_creds'
         is_destroy          = false
         install_tools       = true
         softFail            = false

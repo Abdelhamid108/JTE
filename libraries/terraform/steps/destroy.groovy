@@ -4,19 +4,19 @@
     String cloudCreds = config.cloud_creds ?: 'NONE'
 
     echo "Destroying infrastructure..."
-    def runDestroy {
+    def runDestroy = {
         dir (targetDir){
             if(env.TF_PLAN_FILE){
                 sh "terraform apply ${env.TF_PLAN_FILE}"
             }else{
-                error "No Plan Found in the envrionment, Run Plan step first"
+                error "No Plan Found in the environment, Run Plan step first"
             }
         }
     }
-    if ( cloud_creds != 'NONE' ){
-        withCredentials([string(credentialsId: cloudCreds, variable: 'CLOUD_TOKEN')]) { runDestroy() }
+    if (cloudCreds != 'NONE') {
+        withCredentials([usernamePassword(credentialsId: cloudCreds, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) { runDestroy() }
     } else {
-        runDestroy ()
+        runDestroy()
     }
 
  }

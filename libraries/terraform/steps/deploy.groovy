@@ -14,7 +14,7 @@ void call () {
         }
     }
     if (cloudCreds != 'NONE') {
-        withCredentials([string(credentialsId: cloudCreds, variable: 'CLOUD_TOKEN')]) { runDeploy() }
+        withCredentials([usernamePassword(credentialsId: cloudCreds, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) { runDeploy() }
     } else {
         runDeploy()
     }
