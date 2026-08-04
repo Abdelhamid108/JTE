@@ -1,0 +1,17 @@
+
+
+template_sources {
+    merge = true   
+}
+
+libraries {
+    terraform {
+
+        infra_dir           = '.'
+        terraformBranchName = 'main'
+        is_destroy          = false
+        install_tools       = true
+        softFail            = false
+    }
+}
+
