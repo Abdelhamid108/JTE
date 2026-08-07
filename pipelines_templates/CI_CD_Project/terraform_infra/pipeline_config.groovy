@@ -13,6 +13,6 @@ libraries {
         cloud_creds         = 'aws_creds'          // Jenkins credential ID for AWS
         is_destroy          = false
         install_tools       = true
-        softFail            = false
+        softFail            = true
     }
 }
