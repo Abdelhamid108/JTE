@@ -1,7 +1,4 @@
-// pipeline_config.groovy — Terraform Infrastructure Pipeline
-//
-// This config wires up the terraform library for the infrastructure
-// provisioning Jenkinsfile template.
+// pipeline_config.groovy — Single Branch Terraform Infrastructure Pipeline
 
 template_sources {
     merge = true
@@ -11,9 +8,9 @@ pipeline_template = 'terraform_infra/Jenkinsfile'
 
 libraries {
     terraform {
-        infra_dir           = 'infrastructure'
-        tf_vars             = 'terraform_tfvars'
-        cloud_creds         = 'aws_creds'         // CHANGE: Jenkins credentials ID for cloud provider
+        infra_dir           = 'infrastructure'   // Directory containing Terraform code
+        tf_vars             = 'aws_tfvars'         // Jenkins File Credential ID for .tfvars file
+        cloud_creds         = 'aws_creds'          // Jenkins credential ID for AWS
         is_destroy          = false
         install_tools       = true
         softFail            = false
