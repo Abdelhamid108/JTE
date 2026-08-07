@@ -14,7 +14,8 @@ void call() {
             echo "Generating Terraform Plan..."
             dir(targetDir) {
                 sh "terraform plan ${varFileFlag} ${destroyFlag} -out=${planName} -input=false"
-                archiveArtifacts artifacts: planName, allowEmptyArchive: false
+                sh "terraform show -no-color ${planName} > ${planName}.txt"
+                archiveArtifacts artifacts: "${planName}, ${planName}.txt", allowEmptyArchive: false
                 env.TF_PLAN_FILE = planName
             }
         }
