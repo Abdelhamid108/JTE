@@ -48,8 +48,10 @@ pipeline {
 
         stage('Approval Guardrail') {
             when {
-                branch 'dev'
-                branch 'main'
+                anyOf {
+                    branch 'dev'
+                    branch 'main'
+                }
             }
             steps { 
                 approval()   

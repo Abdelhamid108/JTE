@@ -20,15 +20,15 @@
 
         if (tfVarsCred != 'NONE') {
             withCredentials([file(credentialsId: tfVarsCred, variable: 'TF_VARS_FILE')]) {
-                executePlan("-var-file=\${TF_VARS_FILE}")
+                executePlan("-var-file=${env.TF_VARS_FILE}")
             }
         } else {
             executePlan("")
         }
     }
 
-    if (cloudCreds != 'NONE') {
-        withCredentials([usernamePassword(credentialsId: cloudCreds, usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) { runPlan() }
+    if (cloudCreds && cloudCreds != 'NONE') {
+        withCredentials([aws(credentialsId: cloudCreds, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) { runPlan() }
     } else {
         runPlan()
     }
