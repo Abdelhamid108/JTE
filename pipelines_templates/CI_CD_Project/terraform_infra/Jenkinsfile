@@ -23,13 +23,13 @@ pipeline {
     }
 
     environment {
-        TARGET_ENV = params.TARGET_ENVIRONMENT ?: 'dev'
+        TARGET_ENV = "${params.TARGET_ENVIRONMENT ?: 'dev'}"
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                checkout()
+                checkoutCode()
             }
         }
 

@@ -1,4 +1,3 @@
-
 fields {
     required {
     }
@@ -20,7 +19,7 @@ fields {
 }
 
 steps {
-    checkout
+    checkoutCode
     init
     validate
     checkov
