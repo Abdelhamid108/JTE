@@ -39,7 +39,7 @@ pipeline {
             }
             steps {
                 echo "Installing Checkov inside container..."
-                sh 'apk update && apk add --no-cache python3 py3-pip git && pip3 install checkov'
+                sh 'apk update && apk add --no-cache python3 py3-pip git && pip3 install checkov --break-system-packages'
             }
         }
 
