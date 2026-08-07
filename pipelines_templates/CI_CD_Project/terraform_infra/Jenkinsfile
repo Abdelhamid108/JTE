@@ -35,7 +35,7 @@ pipeline {
 
         stage('Install Dependencies') {
             when {
-                expression { return pipelineConfig.terraform?.install_tools == true }
+                expression { return pipelineConfig.libraries?.terraform?.install_tools == true }
             }
             steps {
                 echo "Installing Checkov inside container..."
