@@ -22,5 +22,5 @@ void call(Map args = [:]) {
         }
     }
 
-    echo "Deploy complete."
+    echo "Deploy complete"
 }

@@ -1,0 +1,212 @@
+// pipelines_templates/app_release_template.groovy
+// Branch-aware CI/CD pipeline for GitOps-style deployments
+//
+// Workflows:
+//   PR to dev       → Validate, Build, Test, Docker Build, Container Validate, Register (PR_VALIDATED)
+//   Merge to dev    → Validate, Build, Test, Docker Build, Container Validate, Push, Cleanup, Register (DEV), Update & Push Manifests
+//   Merge to main   → Read Version, Promote (PRODUCTION), Update & Push PROD Manifests
+
+pipeline {
+    agent any
+
+    environment {
+        APP_VERSION    = ''
+        PIPELINE_IMAGE = ''
+    }
+
+    stages {
+
+        // ───────────────────────────────────────────
+        // STAGE 1: Checkout Source Code
+        // ───────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 2: Read Version
+        // ───────────────────────────────────────────
+        stage('Read Version') {
+            steps {
+                script {
+                    env.APP_VERSION = readVersion()
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 3: Version Gate (PR + DEV only)
+        //   Blocks if version already exists
+        // ───────────────────────────────────────────
+        stage('Version Gate') {
+            when {
+                not { branch 'main' }
+            }
+            steps {
+                versionGate(environment: 'DEV')
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 4: Build & Test Application (PR + DEV only)
+        // ───────────────────────────────────────────
+        stage('Build & Test') {
+            when {
+                not { branch 'main' }
+            }
+            steps {
+                installDeps()
+                lint()
+                testApp()
+                build()
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 5: Docker Build (PR + DEV only)
+        // ───────────────────────────────────────────
+        stage('Docker Build') {
+            when {
+                not { branch 'main' }
+            }
+            steps {
+                script {
+                    env.PIPELINE_IMAGE = build()
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 6: Container Validation (PR + DEV only)
+        //   Run the image to verify it doesn't crash
+        // ───────────────────────────────────────────
+        stage('Container Validation') {
+            when {
+                not { branch 'main' }
+            }
+            steps {
+                containerValidate()
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 7: Docker Push (DEV merge only)
+        //   Login, tag, and push the immutable artifact
+        // ───────────────────────────────────────────
+        stage('Docker Push') {
+            when {
+                branch 'dev'
+                not { changeRequest() }
+            }
+            steps {
+                script {
+                    login()
+                    def tags = tag()
+                    push(tags)
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 8: Cleanup Docker (DEV merge only)
+        // ───────────────────────────────────────────
+        stage('Docker Cleanup') {
+            when {
+                branch 'dev'
+                not { changeRequest() }
+            }
+            steps {
+                cleanup()
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 9A: Register Version — PR_VALIDATED
+        //   Only on Pull Requests
+        // ───────────────────────────────────────────
+        stage('Register Version (PR)') {
+            when {
+                changeRequest()
+            }
+            steps {
+                registerVersion(environment: 'PR_VALIDATED')
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 9B: Register Version — DEV
+        //   Only on merge to dev (not PRs)
+        // ───────────────────────────────────────────
+        stage('Register Version (DEV)') {
+            when {
+                branch 'dev'
+                not { changeRequest() }
+            }
+            steps {
+                registerVersion(environment: 'DEV')
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 10: Promote to PRODUCTION (main only)
+        //   No rebuild, no retest, no re-push
+        //   Reuses the immutable artifact from DEV
+        // ───────────────────────────────────────────
+        stage('Promote to Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                promoteVersion(target_environment: 'PRODUCTION')
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 11: Update Manifests (DEV merge + main)
+        //   Checkout manifests repo, sed the image tag, push
+        // ───────────────────────────────────────────
+        stage('Update Manifests') {
+            when {
+                anyOf {
+                    allOf { branch 'dev';  not { changeRequest() } }
+                    branch 'main'
+                }
+            }
+            steps {
+                script {
+                    // Determine which branch of the manifests repo to update
+                    String manifestsBranch = (env.BRANCH_NAME == 'main') ? 'main' : 'dev'
+                    String commitEnv       = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
+
+                    checkOutRemoteSCM(branch: manifestsBranch)
+
+                    updateManifest(
+                        new_tag: env.APP_VERSION
+                    )
+
+                    gitPush(
+                        branch: manifestsBranch,
+                        commit_message: "ci: deploy ${env.APP_VERSION} to ${commitEnv} [skip ci]"
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                try { logout() } catch (e) { echo "Logout skipped: ${e.message}" }
+            }
+            cleanWs()
+        }
+        failure {
+            echo "Pipeline FAILED for version: ${env.APP_VERSION ?: 'unknown'}"
+        }
+        success {
+            echo "Pipeline SUCCEEDED for version: ${env.APP_VERSION ?: 'unknown'}"
+        }
+    }
+}
