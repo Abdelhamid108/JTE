@@ -20,6 +20,7 @@ libraries {
     npm {
         app_dir       = "."
         skip_lint     = false
+        skip_build    = true
         install_tools = true
     }
 
