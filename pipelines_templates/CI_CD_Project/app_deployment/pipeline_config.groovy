@@ -18,8 +18,9 @@ libraries {
 
     // ─── Application Build & Test ───────────────────
     npm {
-        app_dir   = "."
-        skip_lint = false
+        app_dir       = "."
+        skip_lint     = false
+        install_tools = true
     }
 
     // ─── Docker Image Lifecycle ─────────────────────

@@ -10,6 +10,7 @@ fields {
         docker_file_name = String    // Dockerfile filename. Default: 'Dockerfile'
         docker_file_dir  = String    // Directory containing the Dockerfile. Default: '.'
         no_cache         = Boolean   // true = build with --no-cache. Default: false
+        install_tools    = Boolean   // true = install agent dependencies (aws-cli, kubectl, etc.). Default: false
 
         // Registry
         registry_url     = String    // Docker registry URL. Default: 'https://index.docker.io/v1/'

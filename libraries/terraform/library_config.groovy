@@ -20,6 +20,7 @@ fields {
 
 steps {
     checkoutCode
+    installTools
     init
     validate
     checkov

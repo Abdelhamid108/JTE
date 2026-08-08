@@ -154,8 +154,8 @@ The application deployment pipeline is **branch-aware** and implements three dis
 > **Purpose**: Validate new code before merging. No artifacts leave the build agent.
 
 ```
-Checkout → Read Version → Version Gate → Build & Test (npm)
-→ Docker Build → Container Validation
+Checkout → Read Version → Version Gate → Install Dependencies
+→ Build & Test (npm) → Docker Build → Container Validation
 → Register Version (PR_VALIDATED)
 ```
 
@@ -172,8 +172,8 @@ Checkout → Read Version → Version Gate → Build & Test (npm)
 > **Purpose**: Full CI/CD. Build the immutable artifact, push it, update manifests, and deploy to DEV.
 
 ```
-Checkout → Read Version → Version Gate → Build & Test (npm)
-→ Docker Build → Container Validation
+Checkout → Read Version → Version Gate → Install Dependencies
+→ Build & Test (npm) → Docker Build → Container Validation
 → Login → Tag → Push → Cleanup
 → Register Version (DEV)
 → Checkout Manifests Repo → Update Image Tag (sed) → Git Push Manifests
@@ -227,6 +227,7 @@ Application build and test steps for Node.js projects.
 | Step | Description |
 |:-----|:------------|
 | `installDeps()` | Runs `npm install` |
+| `installTools()` | Installs agent dependencies (AWS CLI, kubectl CLI, Docker CLI, Git) |
 | `npm.buildApp()` | Runs `npm run build` |
 | `lint()` | Runs the project linter |
 | `testApp()` | Runs `npm test` |
@@ -235,8 +236,9 @@ Application build and test steps for Node.js projects.
 **Configuration**:
 ```groovy
 npm {
-    app_dir   = '.'        // Directory containing package.json
-    skip_lint = false       // Set true to skip linting
+    app_dir       = '.'        // Directory containing package.json
+    skip_lint     = false      // Set true to skip linting
+    install_tools = true       // Set true to install agent dependencies (aws-cli, kubectl, etc.)
 }
 ```
 

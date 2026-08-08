@@ -1,13 +1,18 @@
 // pipelines_templates/CI_CD_Project/app_deployment/Jenkinsfile
-// Branch-aware CI/CD pipeline for GitOps-style deployments
+// Branch-aware CI/CD pipeline for GitOps-style deployments using Docker Agent
 //
 // Workflows:
-//   PR to dev       → Validate, Build, Test, Docker Build, Container Validate, Register (PR_VALIDATED)
-//   Merge to dev    → Validate, Build, Test, Docker Build, Container Validate, Push, Cleanup, Register (DEV), Update & Push Manifests
+//   PR to dev       → Validate, Read Version, Version Gate, Install Dependencies, Build & Test, Docker Build, Container Validate, Register (PR_VALIDATED)
+//   Merge to dev    → Validate, Read Version, Version Gate, Install Dependencies, Build & Test, Docker Build, Container Validate, Push, Cleanup, Register (DEV), Update & Push Manifests
 //   Merge to main   → Read Version, Promote (PRODUCTION), Update & Push PROD Manifests
 
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:18-alpine'
+            args '-u root:root -v /var/run/docker.sock:/var/run/docker.sock --entrypoint='
+        }
+    }
 
     environment {
         APP_VERSION    = ''
@@ -50,7 +55,26 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 4: Build & Test Application (PR + DEV only)
+        // STAGE 4: Install Agent Dependencies
+        //   Installs AWS CLI, kubectl, Docker CLI, Git if install_tools is enabled
+        // ───────────────────────────────────────────
+        stage('Install Agent Dependencies') {
+            when {
+                allOf {
+                    not { branch 'main' }
+                    expression {
+                        return (pipelineConfig.libraries?.npm?.install_tools == true ||
+                                pipelineConfig.libraries?.docker?.install_tools == true)
+                    }
+                }
+            }
+            steps {
+                installTools()
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 5: Build & Test Application (PR + DEV only)
         // ───────────────────────────────────────────
         stage('Build & Test') {
             when {
@@ -65,7 +89,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 5: Docker Build (PR + DEV only)
+        // STAGE 6: Docker Build (PR + DEV only)
         // ───────────────────────────────────────────
         stage('Docker Build') {
             when {
@@ -79,7 +103,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 6: Container Validation (PR + DEV only)
+        // STAGE 7: Container Validation (PR + DEV only)
         //   Run the image to verify it doesn't crash
         // ───────────────────────────────────────────
         stage('Container Validation') {
@@ -92,7 +116,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 7: Docker Push (DEV merge only)
+        // STAGE 8: Docker Push (DEV merge only)
         //   Login, tag, and push the immutable artifact
         // ───────────────────────────────────────────
         stage('Docker Push') {
@@ -110,7 +134,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 8: Cleanup Docker (DEV merge only)
+        // STAGE 9: Cleanup Docker (DEV merge only)
         // ───────────────────────────────────────────
         stage('Docker Cleanup') {
             when {
@@ -123,7 +147,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 9A: Register Version — PR_VALIDATED
+        // STAGE 10A: Register Version — PR_VALIDATED
         //   Only on Pull Requests
         // ───────────────────────────────────────────
         stage('Register Version (PR)') {
@@ -136,7 +160,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 9B: Register Version — DEV
+        // STAGE 10B: Register Version — DEV
         //   Only on merge to dev (not PRs)
         // ───────────────────────────────────────────
         stage('Register Version (DEV)') {
@@ -150,7 +174,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 10: Promote to PRODUCTION (main only)
+        // STAGE 11: Promote to PRODUCTION (main only)
         //   No rebuild, no retest, no re-push
         //   Reuses the immutable artifact from DEV
         // ───────────────────────────────────────────
@@ -164,7 +188,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 11: Update Manifests (DEV merge + main)
+        // STAGE 12: Update Manifests (DEV merge + main)
         //   Checkout manifests repo, sed the image tag, push
         // ───────────────────────────────────────────
         stage('Update Manifests') {
