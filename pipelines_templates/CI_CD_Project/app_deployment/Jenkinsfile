@@ -1,4 +1,4 @@
-// pipelines_templates/app_release_template.groovy
+// pipelines_templates/CI_CD_Project/app_deployment/Jenkinsfile
 // Branch-aware CI/CD pipeline for GitOps-style deployments
 //
 // Workflows:
@@ -31,7 +31,7 @@ pipeline {
         stage('Read Version') {
             steps {
                 script {
-                    env.APP_VERSION = readVersion()
+                    env.APP_VERSION = version_manager.readVersion()
                 }
             }
         }
@@ -45,7 +45,7 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                versionGate(environment: 'DEV')
+                version_manager.versionGate(environment: 'DEV')
             }
         }
 
@@ -57,10 +57,10 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                installDeps()
-                lint()
-                testApp()
-                build()
+                npm.installDeps()
+                npm.lint()
+                npm.testApp()
+                npm.build()
             }
         }
 
@@ -73,7 +73,7 @@ pipeline {
             }
             steps {
                 script {
-                    env.PIPELINE_IMAGE = build()
+                    env.PIPELINE_IMAGE = docker.build()
                 }
             }
         }
@@ -87,7 +87,7 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                containerValidate()
+                docker.containerValidate()
             }
         }
 
@@ -102,9 +102,9 @@ pipeline {
             }
             steps {
                 script {
-                    login()
-                    def tags = tag()
-                    push(tags)
+                    docker.login()
+                    def tags = docker.tag()
+                    docker.push(tags)
                 }
             }
         }
@@ -118,7 +118,7 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                cleanup()
+                docker.cleanup()
             }
         }
 
@@ -131,7 +131,7 @@ pipeline {
                 changeRequest()
             }
             steps {
-                registerVersion(environment: 'PR_VALIDATED')
+                version_manager.registerVersion(environment: 'PR_VALIDATED')
             }
         }
 
@@ -145,7 +145,7 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                registerVersion(environment: 'DEV')
+                version_manager.registerVersion(environment: 'DEV')
             }
         }
 
@@ -159,7 +159,7 @@ pipeline {
                 branch 'main'
             }
             steps {
-                promoteVersion(target_environment: 'PRODUCTION')
+                version_manager.promoteVersion(target_environment: 'PRODUCTION')
             }
         }
 
@@ -180,13 +180,13 @@ pipeline {
                     String manifestsBranch = (env.BRANCH_NAME == 'main') ? 'main' : 'dev'
                     String commitEnv       = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
 
-                    checkOutRemoteSCM(branch: manifestsBranch)
+                    kubernetes.checkOutRemoteSCM(branch: manifestsBranch)
 
-                    updateManifest(
+                    kubernetes.updateManifest(
                         new_tag: env.APP_VERSION
                     )
 
-                    gitPush(
+                    kubernetes.gitPush(
                         branch: manifestsBranch,
                         commit_message: "ci: deploy ${env.APP_VERSION} to ${commitEnv} [skip ci]"
                     )
@@ -198,7 +198,7 @@ pipeline {
     post {
         always {
             script {
-                try { logout() } catch (e) { echo "Logout skipped: ${e.message}" }
+                try { docker.logout() } catch (e) { echo "Logout skipped: ${e.message}" }
             }
             cleanWs()
         }
