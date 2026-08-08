@@ -2,7 +2,7 @@
 
 void call(Map args = [:]) {
     String manifestDir = args.manifest_dir ?: config.manifests_dir ?: 'manifests-repo'
-    String imageName   = args.image_name   ?: config.image_name  
+    String imageName   = args.image_name   ?: config.image_name   ?: pipelineConfig?.libraries?.kubernetes?.image_name ?: pipelineConfig?.libraries?.docker?.image_name
     String newTag      = args.new_tag      ?: env.APP_VERSION      ?: readVersion()
 
     if (!imageName || !newTag) {
