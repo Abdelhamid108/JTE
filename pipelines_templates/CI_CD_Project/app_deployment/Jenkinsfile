@@ -45,7 +45,9 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                version_manager.versionGate(environment: 'DEV')
+                script {
+                    version_manager.versionGate(environment: 'DEV')
+                }
             }
         }
 
@@ -57,10 +59,12 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                npm.installDeps()
-                npm.lint()
-                npm.testApp()
-                npm.build()
+                script {
+                    npm.installDeps()
+                    npm.lint()
+                    npm.testApp()
+                    npm.build()
+                }
             }
         }
 
@@ -87,7 +91,9 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                docker.containerValidate()
+                script {
+                    docker.containerValidate()
+                }
             }
         }
 
@@ -118,7 +124,9 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                docker.cleanup()
+                script {
+                    docker.cleanup()
+                }
             }
         }
 
@@ -131,7 +139,9 @@ pipeline {
                 changeRequest()
             }
             steps {
-                version_manager.registerVersion(environment: 'PR_VALIDATED')
+                script {
+                    version_manager.registerVersion(environment: 'PR_VALIDATED')
+                }
             }
         }
 
@@ -145,7 +155,9 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                version_manager.registerVersion(environment: 'DEV')
+                script {
+                    version_manager.registerVersion(environment: 'DEV')
+                }
             }
         }
 
@@ -159,7 +171,9 @@ pipeline {
                 branch 'main'
             }
             steps {
-                version_manager.promoteVersion(target_environment: 'PRODUCTION')
+                script {
+                    version_manager.promoteVersion(target_environment: 'PRODUCTION')
+                }
             }
         }
 
