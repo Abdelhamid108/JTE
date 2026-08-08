@@ -2,7 +2,7 @@
 
 fields {
     required {
-        image_name     = String    // Full image name (e.g. 'myregistry/myapp'). Required by build() and tag()
+        image_name     = String    // Full image name (e.g. 'myregistry/myapp'). Required by buildImage() and tag()
         registry_creds = String    // Jenkins credentials ID for registry auth (usernamePassword). Required by login()
     }
     optional {
@@ -25,7 +25,7 @@ fields {
 
 steps {
     login
-    build
+    buildImage
     tag
     push
     promote

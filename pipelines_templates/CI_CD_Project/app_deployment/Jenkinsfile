@@ -63,7 +63,7 @@ pipeline {
                     npm.installDeps()
                     npm.lint()
                     npm.testApp()
-                    npm.build()
+                    npm.buildApp()
                 }
             }
         }
@@ -77,7 +77,7 @@ pipeline {
             }
             steps {
                 script {
-                    env.PIPELINE_IMAGE = docker.build()
+                    env.PIPELINE_IMAGE = docker.buildImage()
                 }
             }
         }

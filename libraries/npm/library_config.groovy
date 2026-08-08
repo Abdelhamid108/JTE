@@ -12,7 +12,7 @@ fields {
 
 steps {
     installDeps
-    build
+    buildApp
     lint
     testApp
     audit

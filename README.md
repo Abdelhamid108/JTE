@@ -227,7 +227,7 @@ Application build and test steps for Node.js projects.
 | Step | Description |
 |:-----|:------------|
 | `installDeps()` | Runs `npm install` |
-| `npm.build()` | Runs `npm run build` |
+| `npm.buildApp()` | Runs `npm run build` |
 | `lint()` | Runs the project linter |
 | `testApp()` | Runs `npm test` |
 | `audit()` | Runs `npm audit` |
@@ -249,7 +249,7 @@ Full Docker image lifecycle management.
 | Step | Description |
 |:-----|:------------|
 | `login()` | Authenticates to Docker registry |
-| `docker.build()` | Builds Docker image, returns image reference |
+| `docker.buildImage()` | Builds Docker image, returns image reference |
 | `tag()` | Tags image with version, branch, and optional release tags |
 | `push(tags)` | Pushes list of tagged images to registry |
 | `containerValidate()` | Runs container briefly to verify it starts without crashing |
