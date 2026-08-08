@@ -186,7 +186,7 @@ pipeline {
 
         // ───────────────────────────────────────────
         // STAGE 12: Update Manifests (DEV merge + main)
-        //   Checkout manifests repo, sed the image tag, push
+        //   Checkout single main branch, update tag, create feature branch & open PR
         // ───────────────────────────────────────────
         stage('Update Manifests') {
             when {
@@ -197,19 +197,20 @@ pipeline {
             }
             steps {
                 script {
-                    // Determine which branch of the manifests repo to update
-                    String manifestsBranch = (env.BRANCH_NAME == 'main') ? 'main' : 'dev'
-                    String commitEnv       = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
+                    String targetEnv = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
+                    String featureBranch = "deploy/${env.APP_VERSION}-${targetEnv.toLowerCase()}-${env.BUILD_NUMBER}"
 
-                    checkOutRemoteSCM(branch: manifestsBranch)
+                    checkOutRemoteSCM(branch: 'main')
 
                     updateManifest(
                         new_tag: env.APP_VERSION
                     )
 
                     gitPush(
-                        branch: manifestsBranch,
-                        commit_message: "ci: deploy ${env.APP_VERSION} to ${commitEnv} [skip ci]"
+                        target_branch: 'main',
+                        new_branch: featureBranch,
+                        commit_message: "ci: deploy ${env.APP_VERSION} to ${targetEnv} [skip ci]",
+                        create_pr: true
                     )
                 }
             }

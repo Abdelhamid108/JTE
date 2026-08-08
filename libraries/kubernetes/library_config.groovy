@@ -23,5 +23,6 @@ steps {
     checkOutRemoteSCM
     updateManifest
     gitPush
+    createPullRequest
     deploy
 }

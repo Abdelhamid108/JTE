@@ -176,7 +176,7 @@ Checkout → Install Agent Dependencies → Read Version → Version Gate
 → Build & Test (npm) → Docker Build → Container Validation
 → Login → Tag → Push → Cleanup
 → Register Version (DEV)
-→ Checkout Manifests Repo → Update Image Tag (sed) → Git Push Manifests
+→ Checkout Manifests Repo (`main`) → Update Image Tag (sed) → Create Branch & Push → Create PR into `main`
 ```
 
 #### Workflow 3 — Merge `dev` into `main`
@@ -185,7 +185,7 @@ Checkout → Install Agent Dependencies → Read Version → Version Gate
 
 ```
 Checkout → Read Version → Promote Version (PRODUCTION)
-→ Checkout Manifests Repo → Update Image Tag (sed) → Git Push Manifests
+→ Checkout Manifests Repo (`main`) → Update Image Tag (sed) → Create Branch & Push → Create PR into `main`
 ```
 
 > **⚠️ IMPORTANT**: This workflow does **NOT** rebuild, retest, or re-push the Docker image. It reuses the exact immutable artifact that was built and pushed during Workflow 2.
