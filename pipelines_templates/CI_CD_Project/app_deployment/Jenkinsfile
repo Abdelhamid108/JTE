@@ -31,7 +31,7 @@ pipeline {
         stage('Read Version') {
             steps {
                 script {
-                    env.APP_VERSION = version_manager.readVersion()
+                    env.APP_VERSION = readVersion()
                 }
             }
         }
@@ -45,9 +45,7 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                script {
-                    version_manager.versionGate(environment: 'DEV')
-                }
+                versionGate(environment: 'DEV')
             }
         }
 
@@ -59,12 +57,10 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                script {
-                    npm.installDeps()
-                    npm.lint()
-                    npm.testApp()
-                    npm.buildApp()
-                }
+                installDeps()
+                lint()
+                testApp()
+                buildApp()
             }
         }
 
@@ -77,7 +73,7 @@ pipeline {
             }
             steps {
                 script {
-                    env.PIPELINE_IMAGE = docker.buildImage()
+                    env.PIPELINE_IMAGE = buildImage()
                 }
             }
         }
@@ -91,9 +87,7 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                script {
-                    docker.containerValidate()
-                }
+                containerValidate()
             }
         }
 
@@ -108,9 +102,9 @@ pipeline {
             }
             steps {
                 script {
-                    docker.login()
-                    def tags = docker.tag()
-                    docker.push(tags)
+                    login()
+                    def tags = tag()
+                    push(tags)
                 }
             }
         }
@@ -124,9 +118,7 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                script {
-                    docker.cleanup()
-                }
+                cleanup()
             }
         }
 
@@ -139,9 +131,7 @@ pipeline {
                 changeRequest()
             }
             steps {
-                script {
-                    version_manager.registerVersion(environment: 'PR_VALIDATED')
-                }
+                registerVersion(environment: 'PR_VALIDATED')
             }
         }
 
@@ -155,9 +145,7 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                script {
-                    version_manager.registerVersion(environment: 'DEV')
-                }
+                registerVersion(environment: 'DEV')
             }
         }
 
@@ -171,9 +159,7 @@ pipeline {
                 branch 'main'
             }
             steps {
-                script {
-                    version_manager.promoteVersion(target_environment: 'PRODUCTION')
-                }
+                promoteVersion(target_environment: 'PRODUCTION')
             }
         }
 
@@ -194,13 +180,13 @@ pipeline {
                     String manifestsBranch = (env.BRANCH_NAME == 'main') ? 'main' : 'dev'
                     String commitEnv       = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
 
-                    kubernetes.checkOutRemoteSCM(branch: manifestsBranch)
+                    checkOutRemoteSCM(branch: manifestsBranch)
 
-                    kubernetes.updateManifest(
+                    updateManifest(
                         new_tag: env.APP_VERSION
                     )
 
-                    kubernetes.gitPush(
+                    gitPush(
                         branch: manifestsBranch,
                         commit_message: "ci: deploy ${env.APP_VERSION} to ${commitEnv} [skip ci]"
                     )
@@ -212,7 +198,7 @@ pipeline {
     post {
         always {
             script {
-                try { docker.logout() } catch (e) { echo "Logout skipped: ${e.message}" }
+                try { logout() } catch (e) { echo "Logout skipped: ${e.message}" }
             }
             cleanWs()
         }

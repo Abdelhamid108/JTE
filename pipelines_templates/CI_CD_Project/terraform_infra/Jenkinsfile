@@ -29,9 +29,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                script {
-                    terraform.checkoutCode()
-                }
+                checkoutCode()
             }
         }
 
@@ -47,26 +45,20 @@ pipeline {
 
         stage('Initialize & Validate') {
             steps {
-                script {
-                    terraform.init()
-                    terraform.validate()
-                }
+                init()
+                validate()
             }
         }
 
         stage('Security Scan') {
             steps {
-                script {
-                    terraform.checkov()
-                }
+                checkov()
             }
         }
 
         stage('Plan Infrastructure') {
             steps {
-                script {
-                    terraform.plan()
-                }
+                plan()
             }
         }
 
@@ -76,9 +68,7 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                script {
-                    terraform.approval(is_destroy: params.ACTION == 'destroy')
-                }
+                approval(is_destroy: params.ACTION == 'destroy')
             }
         }
 
@@ -90,9 +80,9 @@ pipeline {
             steps {
                 script {
                     if (params.ACTION == 'destroy') {
-                        terraform.destroy()
+                        destroy()
                     } else {
-                        terraform.deploy()
+                        deploy()
                     }
                 }
             }
