@@ -52,8 +52,10 @@ libraries {
 
     // ─── Version Registry (S3-backed JSON) ──────────
     version_manager {
-        registry_path    = "s3://weather-app-version-registry/SourceCodeVersions.json"
-        promotion_order  = ["DEV", "PRODUCTION"]
+        registry_path       = "s3://weather-app-version-registry/SourceCodeVersions.json"
+        promotion_order     = ["DEV", "PRODUCTION"]
+        aws_credentials_id  = "aws-creds"
+
         strict_promotion = true
     }
 }
