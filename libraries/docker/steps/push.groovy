@@ -1,9 +1,11 @@
-void call (list tagsToPush){
+// steps/push.groovy
+
+void call(List tagsToPush) {
     if (!tagsToPush || tagsToPush.isEmpty()) {
-        error "No Tags provided to push "
+        error "push: No tags provided to push."
     }
     tagsToPush.each { tag ->
-        echo "Pushing image: ${tag}"
+        echo "Pushing Docker image: ${tag}"
         sh "docker push ${tag}"
     }
 }
