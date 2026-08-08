@@ -36,7 +36,7 @@ void call(Map args = [:]) {
     }
 
     withAws {
-        String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{\"versions\":[]}'", returnStdout: true).trim()
+        String content = sh(script: "aws s3 cp '${registryPath}' -", returnStdout: true).trim()
         
         def registry = readJSON text: content
         

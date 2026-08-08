@@ -8,15 +8,15 @@ Map call(Map args = [:]) {
     if (!version)     { error "checkVersion: 'version' is required." }
     if (!environment) { error "checkVersion: 'environment' is required." }
 
-    String awsCommand = "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{\"versions\":[]}'"
+    String awsCommand = "aws s3 cp '${registryPath}' -"
     String content = ""
 
     if (awsCredentialsId) {
         withCredentials([aws(credentialsId: awsCredentialsId, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-            content = executeShell(awsCommand)
+            content = sh(script: awsCommand, returnStdout: true).trim()
         }
     } else {
-        content = executeShell(awsCommand)
+        content = sh(script: awsCommand, returnStdout: true).trim()
     }
 
     def registry = readJSON text: content
@@ -29,8 +29,4 @@ Map call(Map args = [:]) {
     }
 
     return [exists: match != null, record: match]
-}
-
-String executeShell(String command) {
-    return sh(script: command, returnStdout: true).trim()
 }
