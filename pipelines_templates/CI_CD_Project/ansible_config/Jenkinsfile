@@ -1,0 +1,75 @@
+// pipelines_templates/CI_CD_Project/ansible_config/Jenkinsfile
+// Single-branch (main) Ansible Configuration Management Pipeline
+// Consumes the hosts.ini inventory artifact archived by the terraform_infra pipeline
+
+pipeline {
+    agent {
+        docker {
+            image "python:3.12-alpine"
+            args '-u root:root --entrypoint='
+        }
+    }
+
+    parameters {
+        choice(
+            name: 'TARGET_ENVIRONMENT',
+            choices: ['dev', 'prod'],
+            description: 'Target environment — must match the terraform_infra run that produced the inventory'
+        )
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                checkoutCode()
+            }
+        }
+
+        stage('Install Dependencies') {
+            when {
+                expression { return pipelineConfig.libraries?.ansible?.install_tools == true }
+            }
+            steps {
+                installTools()
+            }
+        }
+
+        stage('Fetch Terraform Inventory') {
+            steps {
+                fetchInventory()
+            }
+        }
+
+        stage('Syntax Check & Lint') {
+            steps {
+                lint()
+            }
+        }
+
+        stage('Approval Guardrail') {
+            when {
+                branch 'main'
+                not { changeRequest() }
+            }
+            steps {
+                input message: "Approve Ansible configuration run against ${params.TARGET_ENVIRONMENT}?", ok: 'proceed'
+            }
+        }
+
+        stage('Configure Hosts') {
+            when {
+                branch 'main'
+                not { changeRequest() }
+            }
+            steps {
+                deploy()
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}

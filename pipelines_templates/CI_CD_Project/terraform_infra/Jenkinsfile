@@ -86,6 +86,17 @@ pipeline {
                 }
             }
         }
+        
+        stage('Archive Ansible Inventory') {
+            when {
+                branch 'main'
+                not { changeRequest() }
+                expression { return params.ACTION != 'destroy' }
+            }
+            steps {
+                archiveInventory()
+            }
+        }
     }
 
     post {
