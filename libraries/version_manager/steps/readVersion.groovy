@@ -3,28 +3,28 @@ String call(Map args = [:]) {
     String appDir      = args.app_dir      ?: config.app_dir      ?: '.'
     String versionFile = args.version_file ?: config.version_file ?: 'VERSION'
 
-    String version = null
+    String targetFile = (appDir != '.') ? "${appDir}/${versionFile}" : versionFile
 
-    dir(appDir) {
-        if (!fileExists(versionFile)) {
-            error "readVersion: File '${versionFile}' not found."
-        }
+    if (!fileExists(targetFile)) {
+        error "readVersion: File '${targetFile}' not found."
+    }
 
-        if (versionFile.endsWith('.json')) {
-            String content = readFile(file: versionFile)
-            def json = readJSON text: content
-            version = json.version
-        } else {
-            version = readFile(file: versionFile).trim()
-        }
+    String content = readFile(file: targetFile).trim()
+    String version = ''
+
+    if (versionFile.endsWith('.json')) {
+        def json = readJSON text: content
+        version = json.version
+    } else {
+        version = content
     }
 
     if (!version?.trim()) {
-        error "readVersion: No version found in '${versionFile}'."
+        error "readVersion: No version found in '${targetFile}'."
     }
 
     version = version.trim()
     env.APP_VERSION = version
-    echo "readVersion: ${version} (from ${versionFile})"
+    echo "readVersion: ${version} (from ${targetFile})"
     return version
 }

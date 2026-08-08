@@ -1,7 +1,7 @@
 // steps/promoteVersion.groovy
 
 void call(Map args = [:]) {
-    String version   = args.version ?: env.APP_VERSION
+    String version   = args.version ?: env.APP_VERSION ?: readVersion()
     String targetEnv = args.target_environment ?: config.target_environment
 
     if (!version || !targetEnv) { 

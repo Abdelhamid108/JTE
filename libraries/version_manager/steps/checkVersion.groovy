@@ -1,6 +1,6 @@
 
 Map call(Map args = [:]) {
-    String version          = args.version          ?: env.APP_VERSION
+    String version          = args.version          ?: env.APP_VERSION ?: readVersion()
     String environment      = args.environment      ?: config.target_environment
     String registryPath     = config.registry_path  ?: 's3://your-bucket-name/version-registry.json'
     String awsCredentialsId = args.aws_credentials_id ?: config.aws_credentials_id

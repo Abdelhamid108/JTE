@@ -1,5 +1,5 @@
 void call(Map args = [:]) {
-    String version          = args.version          ?: env.APP_VERSION
+    String version          = args.version          ?: env.APP_VERSION ?: readVersion()
     String environment      = args.environment      ?: config.target_environment
     String repository       = args.repository       ?: config.repository   ?: env.GIT_URL   ?: ''
     String branch           = args.branch           ?: env.BRANCH_NAME     ?: ''
