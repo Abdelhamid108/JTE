@@ -38,7 +38,7 @@ libraries {
     // ─── Kubernetes Manifests & Deployment ───────────
     kubernetes {
         manifests_repo_url  = "https://github.com/mostafagheta/manifest.git"
-        manifests_git_creds = "github-creds"
+        manifests_git_creds = "GitHub-creds"
         manifests_branch    = "main"
         manifests_dir       = "."
         image_name          = "abdelhameed208/atos-weather-app"
@@ -54,7 +54,7 @@ libraries {
     version_manager {
         registry_path       = "s3://weather-app-version-registry/SourceCodeVersions.json"
         promotion_order     = ["DEV", "PRODUCTION"]
-        aws_credentials_id  = "aws-creds"
+        aws_credentials_id  = "aws_creds"
 
         strict_promotion = true
     }
