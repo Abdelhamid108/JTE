@@ -1,9 +1,9 @@
 // docker/steps/tag.groovy
 
 List call(Map args = [:]) {
-    String imageName    = args.image_name    ?: config.image_name
-    String pipelineImage = args.pipeline_image ?: env.PIPELINE_IMAGE
-    String appVersion   = args.app_version   ?: env.APP_VERSION
+    String imageName     = args.image_name    ?: config.image_name
+    String pipelineImage = args.pipeline_image ?: env.PIPELINE_IMAGE ?: (imageName ? "${imageName}:build-${env.BUILD_ID}" : null)
+    String appVersion    = args.app_version   ?: env.APP_VERSION
 
     if (!pipelineImage || !imageName) {
         error "PIPELINE STOPPED: Missing image name or pipeline image for docker.tag()"

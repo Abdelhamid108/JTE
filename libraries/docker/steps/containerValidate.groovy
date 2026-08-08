@@ -1,7 +1,8 @@
 // docker/steps/containerValidate.groovy
 
 void call(Map args = [:]) {
-    String image         = args.pipeline_image ?: env.PIPELINE_IMAGE
+    String defaultImage   = config.image_name ? "${config.image_name}:build-${env.BUILD_ID}" : null
+    String image          = args.pipeline_image ?: env.PIPELINE_IMAGE ?: defaultImage
     String containerName = args.container_name ?: "validate-${env.BUILD_ID}"
     int waitSeconds      = args.wait_seconds   ?: config.validate_wait_seconds ?: 10
     String healthUrl     = args.health_url     ?: config.health_url

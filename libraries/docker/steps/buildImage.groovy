@@ -14,8 +14,9 @@ String call(Map args = [:]) {
 
         dir(buildDir) {
             sh "docker build -f ${dockerFileName} -t ${pipelineImage} ${noCacheFlag} ."
-            return pipelineImage
         }
+        env.PIPELINE_IMAGE = pipelineImage
+        return pipelineImage
     } else {
         error "You Must Provide Image Name"
     }
