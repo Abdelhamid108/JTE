@@ -31,7 +31,23 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 2: Read Version
+        // STAGE 2: Install Agent Dependencies
+        //   Installs AWS CLI, kubectl, Docker CLI, Git if install_tools is enabled
+        // ───────────────────────────────────────────
+        stage('Install Agent Dependencies') {
+            when {
+                expression {
+                    return (pipelineConfig.libraries?.npm?.install_tools == true ||
+                            pipelineConfig.libraries?.docker?.install_tools == true)
+                }
+            }
+            steps {
+                installTools()
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 3: Read Version
         // ───────────────────────────────────────────
         stage('Read Version') {
             steps {
@@ -42,7 +58,7 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 3: Version Gate (PR + DEV only)
+        // STAGE 4: Version Gate (PR + DEV only)
         //   Blocks if version already exists
         // ───────────────────────────────────────────
         stage('Version Gate') {
@@ -51,25 +67,6 @@ pipeline {
             }
             steps {
                 versionGate(environment: 'DEV')
-            }
-        }
-
-        // ───────────────────────────────────────────
-        // STAGE 4: Install Agent Dependencies
-        //   Installs AWS CLI, kubectl, Docker CLI, Git if install_tools is enabled
-        // ───────────────────────────────────────────
-        stage('Install Agent Dependencies') {
-            when {
-                allOf {
-                    not { branch 'main' }
-                    expression {
-                        return (pipelineConfig.libraries?.npm?.install_tools == true ||
-                                pipelineConfig.libraries?.docker?.install_tools == true)
-                    }
-                }
-            }
-            steps {
-                installTools()
             }
         }
 

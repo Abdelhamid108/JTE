@@ -154,7 +154,7 @@ The application deployment pipeline is **branch-aware** and implements three dis
 > **Purpose**: Validate new code before merging. No artifacts leave the build agent.
 
 ```
-Checkout → Read Version → Version Gate → Install Dependencies
+Checkout → Install Agent Dependencies → Read Version → Version Gate
 → Build & Test (npm) → Docker Build → Container Validation
 → Register Version (PR_VALIDATED)
 ```
@@ -172,7 +172,7 @@ Checkout → Read Version → Version Gate → Install Dependencies
 > **Purpose**: Full CI/CD. Build the immutable artifact, push it, update manifests, and deploy to DEV.
 
 ```
-Checkout → Read Version → Version Gate → Install Dependencies
+Checkout → Install Agent Dependencies → Read Version → Version Gate
 → Build & Test (npm) → Docker Build → Container Validation
 → Login → Tag → Push → Cleanup
 → Register Version (DEV)
