@@ -503,7 +503,7 @@ aws s3 cp version-registry.json s3://your-bucket/version-registry.json
 | [Git](https://plugins.jenkins.io/git/) | Git SCM integration |
 | [Credentials Binding](https://plugins.jenkins.io/credentials-binding/) | Secret management |
 | [Docker Pipeline](https://plugins.jenkins.io/docker-workflow/) | Docker agent support |
-| [Pipeline Utility Steps](https://plugins.jenkins.io/pipeline-utility-steps/) | `readJSON`, `writeJSON`, etc. |
+| [Pipeline Utility Steps](https://plugins.jenkins.io/pipeline-utility-steps/) | Optional (Native Groovy `JsonSlurperClassic` is now used for JSON handling) |
 | [AWS Credentials](https://plugins.jenkins.io/aws-credentials/) | AWS credential binding (`aws()`) |
 
 ### Jenkins Credentials

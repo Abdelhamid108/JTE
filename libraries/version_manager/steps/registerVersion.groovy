@@ -1,4 +1,5 @@
-// steps/registerVersion.groovy
+import groovy.json.JsonSlurperClassic
+import groovy.json.JsonOutput
 
 void call(Map args = [:]) {
     String version          = args.version          ?: env.APP_VERSION
@@ -39,12 +40,13 @@ void call(Map args = [:]) {
 
     withAws {
         String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{\"versions\":[]}'", returnStdout: true).trim()
-        def registry = readJSON(text: content)
+        def registry = new JsonSlurperClassic().parseText(content)
         
         registry.versions.add(record)
 
         String tempFile = ".version_registry_tmp.json"
-        writeJSON(file: tempFile, json: registry, pretty: 4)
+        String formattedJson = JsonOutput.prettyPrint(JsonOutput.toJson(registry))
+        writeFile(file: tempFile, text: formattedJson)
         
         sh "aws s3 cp '${tempFile}' '${registryPath}'"
         

@@ -1,4 +1,4 @@
-// steps/checkVersion.groovy
+import groovy.json.JsonSlurperClassic
 
 Map call(Map args = [:]) {
     String version          = args.version          ?: env.APP_VERSION
@@ -20,7 +20,7 @@ Map call(Map args = [:]) {
         content = executeShell(awsCommand)
     }
 
-    def registry = readJSON(text: content)
+    def registry = new JsonSlurperClassic().parseText(content)
     def match = registry.versions.find { it.version == version && it.environment == environment }
 
     if (match) {

@@ -1,4 +1,4 @@
-// steps/readVersion.groovy
+import groovy.json.JsonSlurperClassic
 
 String call(Map args = [:]) {
     String appDir      = args.app_dir      ?: config.app_dir      ?: '.'
@@ -12,7 +12,8 @@ String call(Map args = [:]) {
         }
 
         if (versionFile.endsWith('.json')) {
-            def json = readJSON(file: versionFile)
+            String content = readFile(file: versionFile)
+            def json = new JsonSlurperClassic().parseText(content)
             version = json.version
         } else {
             version = readFile(file: versionFile).trim()
