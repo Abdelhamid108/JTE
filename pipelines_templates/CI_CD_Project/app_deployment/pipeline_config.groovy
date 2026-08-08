@@ -54,7 +54,7 @@ libraries {
     version_manager {
         registry_path       = "s3://weather-app-version-registry/SourceCodeVersions.json"
         promotion_order     = ["DEV", "PRODUCTION"]
-        aws_credentials_id  = "aws-creds"
+        aws_credentials_id  = "aws_creds"
 
         strict_promotion = true
     }
