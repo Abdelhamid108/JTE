@@ -15,7 +15,7 @@ libraries {
         install_tools       = true
         softFail            = true
         ansible_dir         = 'ansible'
-        inventory_file      = 'hosts.ini'          // Written by Terraform (local_file resource); archived for the ansible_config pipeline
+        inventory_file      = 'inventory.ini'      // Written by Terraform (local_file resource); archived for the ansible_config pipeline
 
     }
 }

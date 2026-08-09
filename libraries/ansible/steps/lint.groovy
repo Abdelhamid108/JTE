@@ -3,7 +3,7 @@
 void call(Map args = [:]) {
     String targetDir  = args.playbook_dir ?: config.playbook_dir ?: '.'
     String playbook   = args.playbook_file ?: config.playbook_file ?: 'site.yml'
-    String inventory  = args.inventory_file ?: config.inventory_file ?: 'hosts.ini'
+    String inventory  = args.inventory_file ?: config.inventory_file ?: 'inventory.ini'
 
     dir(targetDir) {
         if (!fileExists(inventory)) {

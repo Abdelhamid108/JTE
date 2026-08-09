@@ -16,7 +16,7 @@ fields {
         become               = Boolean   // true = run with --become (privilege escalation). Default: false
 
         // Inventory (produced by the terraform library's archiveInventory() step)
-        inventory_file             = String    // Inventory filename to fetch/use. Default: 'hosts.ini'
+        inventory_file             = String    // Inventory filename to fetch/use. Default: 'inventory.ini'
         terraform_job_name         = String    // Upstream Jenkins job name that archived the inventory artifact
         terraform_build_selector   = String    // Copy Artifact build selector: 'lastSuccessful' (default) or a specific build number
 

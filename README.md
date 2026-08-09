@@ -231,7 +231,7 @@ Checkout Code → Install Dependencies (Checkov)
 
 ### Ansible Configuration Pipeline
 
-Separate, single-branch (`main`) pipeline that configures the hosts Terraform provisioned. It never talks to Terraform or the cloud provider directly — it only consumes the `hosts.ini` artifact that `terraform_infra` archived.
+Separate, single-branch (`main`) pipeline that configures the hosts Terraform provisioned. It never talks to Terraform or the cloud provider directly — it only consumes the `inventory.ini` artifact that `terraform_infra` archived.
 
 #### Parameters
 
@@ -384,7 +384,7 @@ Terraform infrastructure provisioning with security scanning and approval gates.
 | `approval()` | Manual approval gate before apply/destroy |
 | `deploy()` | Applies the archived Terraform plan |
 | `destroy()` | Applies a destroy plan |
-| `archiveInventory()` | Archives the Ansible inventory file (e.g. `hosts.ini`) written by Terraform as a Jenkins build artifact, so the `ansible_config` pipeline can retrieve it |
+| `archiveInventory()` | Archives the Ansible inventory file (e.g. `inventory.ini`) written by Terraform as a Jenkins build artifact, so the `ansible_config` pipeline can retrieve it |
 
 **Configuration**:
 ```groovy
@@ -395,7 +395,7 @@ terraform {
     is_destroy    = false
     install_tools = true                // Install Checkov at runtime
     softFail      = false               // Checkov soft-fail mode
-    inventory_file = 'hosts.ini'        // Ansible inventory file Terraform writes out; archived by archiveInventory()
+    inventory_file = 'inventory.ini'        // Ansible inventory file Terraform writes out; archived by archiveInventory()
 }
 ```
 
@@ -409,7 +409,7 @@ Configuration management against the hosts provisioned by the `terraform` librar
 |:-----|:------------|
 | `checkoutCode()` | Checks out the repository containing the Ansible playbooks (same pattern as `terraform.checkoutCode()`) |
 | `installTools()` | Installs Ansible + `ansible-lint` and SSH client tooling on the agent |
-| `fetchInventory()` | Uses the Copy Artifact plugin to pull the `hosts.ini` artifact archived by the upstream `terraform_infra` job's `archiveInventory()` step |
+| `fetchInventory()` | Uses the Copy Artifact plugin to pull the `inventory.ini` artifact archived by the upstream `terraform_infra` job's `archiveInventory()` step |
 | `lint()` | Runs `ansible-playbook --syntax-check` and `ansible-lint` against the playbook before it touches real hosts |
 | `deploy()` | Runs `ansible-playbook` against the fetched inventory, using an SSH private key credential |
 
@@ -418,9 +418,9 @@ Configuration management against the hosts provisioned by the `terraform` librar
 ansible {
     playbook_dir              = 'ansible'                       // Directory containing site.yml / roles
     playbook_file              = 'site.yml'
-    inventory_file             = 'hosts.ini'                    // Must match terraform's inventory_file
+    inventory_file             = 'inventory.ini'                    // Must match terraform's inventory_file
     ssh_creds                 = 'ansible_ssh_key'               // Jenkins SSH private key credential ID
-    terraform_job_name        = 'CI_CD_Project/terraform_infra' // Upstream job that archived hosts.ini
+    terraform_job_name        = 'CI_CD_Project/terraform_infra' // Upstream job that archived inventory.ini
     terraform_build_selector  = 'lastSuccessful'                // Or a specific build number
     install_tools             = true
     become                    = true                            // Pass --become to ansible-playbook
@@ -572,7 +572,7 @@ aws s3 cp version-registry.json s3://your-bucket/version-registry.json
 | [Docker Pipeline](https://plugins.jenkins.io/docker-workflow/) | Docker agent support |
 | [Pipeline Utility Steps](https://plugins.jenkins.io/pipeline-utility-steps/) | Optional (Native Groovy `JsonSlurperClassic` is now used for JSON handling) |
 | [AWS Credentials](https://plugins.jenkins.io/aws-credentials/) | AWS credential binding (`aws()`) |
-| [Copy Artifact](https://plugins.jenkins.io/copyartifact/) | Lets the `ansible_config` job pull `hosts.ini` from the `terraform_infra` job's build (`fetchInventory()`) |
+| [Copy Artifact](https://plugins.jenkins.io/copyartifact/) | Lets the `ansible_config` job pull `inventory.ini` from the `terraform_infra` job's build (`fetchInventory()`) |
 | [SSH Agent](https://plugins.jenkins.io/ssh-agent/) | Provides `sshUserPrivateKey` credential binding used by `ansible.deploy()` |
 
 ### Jenkins Credentials

@@ -7,7 +7,7 @@
 
 void call() {
     String targetDir = config.ansible_dir ?: '.'
-    String inventoryFile = config.inventory_file ?: 'hosts.ini'
+    String inventoryFile = config.inventory_file ?: 'inventory.ini'
 
     dir(targetDir) {
         if (!fileExists(inventoryFile)) {

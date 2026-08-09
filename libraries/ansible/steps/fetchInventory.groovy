@@ -7,7 +7,7 @@
 
 void call(Map args = [:]) {
     String terraformJob  = args.terraform_job_name ?: config.terraform_job_name
-    String inventoryFile = args.inventory_file ?: config.inventory_file ?: 'hosts.ini'
+    String inventoryFile = args.inventory_file ?: config.inventory_file ?: 'inventory.ini'
     String selector      = args.terraform_build_selector ?: config.terraform_build_selector ?: 'lastSuccessful'
     String targetDir     = args.playbook_dir ?: config.playbook_dir ?: '.'
 
