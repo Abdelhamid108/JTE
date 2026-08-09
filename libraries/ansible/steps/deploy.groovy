@@ -17,6 +17,7 @@ void call(Map args = [:]) {
                     sh """
                         cp "\$ANSIBLE_SSH_KEY" ansiblekey.pem
                         chmod 400 ansiblekey.pem
+                        ssh -i ./ansiblekey.pem -o StrictHostKeyChecking=no ec2-user@44.213.106.223
                         ansible-playbook -i ${inventory} ${playbook}
                     """
                 }
