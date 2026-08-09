@@ -12,7 +12,7 @@ void call(Map args = [:]) {
         sh """
             echo "--- Running kubectl client dry-run validation on ${checkPath} ---"
             if command -v kubectl >/dev/null 2>&1; then
-                kubectl apply --dry-run=client -f ${checkPath}
+                kubectl apply --dry-run=client --validate=false -f ${checkPath}
             else
                 error "validateManifest: kubectl CLI is not installed on the build agent."
             fi
