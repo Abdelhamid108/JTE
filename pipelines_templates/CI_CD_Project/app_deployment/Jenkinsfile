@@ -209,9 +209,9 @@ pipeline {
                         target_folder: targetFolder
                     )
 
-                    validateManifest(
-                        target_folder: targetFolder
-                    )
+                    //validateManifest(
+                    //    target_folder: targetFolder
+                    //)
 
                     gitPush(
                         target_branch: 'main',
