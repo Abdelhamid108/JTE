@@ -12,9 +12,9 @@ void call(Map args = [:]) {
         error "kubernetes.deploy requires 'kube_creds' (Jenkins credential ID for kubeconfig)"
     }
 
-    String deployPath = (targetFolder != '.') ? "${manifestDir}/${targetFolder}" : manifestDir
+    String deployPath = (targetFolder != '.' && manifestDir != '.') ? "${manifestDir}/${targetFolder}" : ((targetFolder != '.') ? targetFolder : manifestDir)
 
-    echo "Applying manifests from ${deployPath}/ to namespace '${namespace}'..."
+    echo "Applying manifests from '${deployPath}' to namespace '${namespace}'..."
 
     withCredentials([file(credentialsId: kubeCreds, variable: 'KUBECONFIG')]) {
         sh "kubectl apply -f ${deployPath}/ -n ${namespace}"
