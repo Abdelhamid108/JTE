@@ -6,7 +6,7 @@
 // (see ansible/steps/fetchInventory.groovy).
 
 void call() {
-    String targetDir = config.infra_dir ?: '.'
+    String targetDir = config.ansible_dir ?: '.'
     String inventoryFile = config.inventory_file ?: 'hosts.ini'
 
     dir(targetDir) {

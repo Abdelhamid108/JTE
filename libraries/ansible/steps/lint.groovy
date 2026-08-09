@@ -1,9 +1,9 @@
 // steps/lint.groovy — Syntax-checks and lints the playbook before it is run against real hosts
 
-void call() {
-    String targetDir  = config.playbook_dir ?: '.'
-    String playbook    = config.playbook_file ?: 'site.yml'
-    String inventory   = config.inventory_file ?: 'hosts.ini'
+void call(Map args = [:]) {
+    String targetDir  = args.playbook_dir ?: config.playbook_dir ?: '.'
+    String playbook   = args.playbook_file ?: config.playbook_file ?: 'site.yml'
+    String inventory  = args.inventory_file ?: config.inventory_file ?: 'hosts.ini'
 
     dir(targetDir) {
         if (!fileExists(inventory)) {
