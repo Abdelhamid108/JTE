@@ -172,8 +172,8 @@ pipeline {
 
         // ───────────────────────────────────────────
         // STAGE 11: Promote to PRODUCTION (main only)
-        //   No rebuild, no retest. Reuses the immutable artifact from DEV
-        //   Pulls dev image, re-tags for prod & latest, pushes to registry, updates version registry
+        //   First validates & registers version in S3 PRODUCTION registry (fails fast if already deployed).
+        //   Then pulls dev image, re-tags for prod & latest, and pushes to registry.
         // ───────────────────────────────────────────
         stage('Promote to Production') {
             when {
@@ -184,9 +184,10 @@ pipeline {
                     String version   = env.APP_VERSION ?: readVersion()
                     String imageName = pipelineConfig?.libraries?.docker?.image_name ?: pipelineConfig?.libraries?.kubernetes?.image_name
 
+                    promoteVersion(target_environment: 'PRODUCTION')
+
                     login()
 
-                    // Promote Docker image from dev to prod & latest
                     promoteDockerImage(
                         source_image: "${imageName}:dev-${version}",
                         target_image: "${imageName}:prod-${version}"
@@ -196,9 +197,6 @@ pipeline {
                         source_image: "${imageName}:dev-${version}",
                         target_image: "${imageName}:latest"
                     )
-
-                    // Promote version in S3 registry
-                    promoteVersion(target_environment: 'PRODUCTION')
                 }
             }
         }
