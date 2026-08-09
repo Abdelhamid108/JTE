@@ -62,13 +62,13 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
+                retry(2) {
+                    deploy(
+                        playbook_file: 'master_playbook.yml'
+                    )
+                }
                 deploy(
-                    playbook_file: 'master_playbook.yml',
-                    extra_vars: "target_env=${params.TARGET_ENVIRONMENT}"
-                )
-                deploy(
-                    playbook_file: 'worker_playbook.yml',
-                    extra_vars: "target_env=${params.TARGET_ENVIRONMENT}"
+                    playbook_file: 'worker_playbook.yml'
                 )
             }
         }
