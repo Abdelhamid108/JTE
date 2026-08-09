@@ -17,13 +17,22 @@ void call(Map args = [:]) {
             if (!fileExists(inventory)) {
                 error "PIPELINE STOPPED: Inventory file '${inventory}' not found in ${targetDir}. Run fetchInventory() first."
             }
-            sh "ansible-playbook -i ${inventory} ${playbook} ${becomeFlag} ${extraVars}"
+            if (env.ANSIBLE_SSH_KEY) {
+                try {
+                    sh "cp \"${env.ANSIBLE_SSH_KEY}\" ./ansiblekey.pem && chmod 400 ./ansiblekey.pem"
+                    sh "ansible-playbook -i ${inventory} ${playbook} ${becomeFlag} ${extraVars}"
+                } finally {
+                    sh "rm -f ./ansiblekey.pem"
+                }
+            } else {
+                sh "ansible-playbook -i ${inventory} ${playbook} ${becomeFlag} ${extraVars}"
+            }
         }
     }
 
     if (sshCreds && sshCreds != 'NONE') {
         withCredentials([sshUserPrivateKey(credentialsId: sshCreds, keyFileVariable: 'ANSIBLE_SSH_KEY')]) {
-            withEnv(["ANSIBLE_PRIVATE_KEY_FILE=${env.ANSIBLE_SSH_KEY}", "ANSIBLE_HOST_KEY_CHECKING=False"]) {
+            withEnv(["ANSIBLE_HOST_KEY_CHECKING=False"]) {
                 runPlaybook()
             }
         }
