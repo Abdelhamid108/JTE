@@ -182,7 +182,7 @@ pipeline {
             steps {
                 script {
                     String version   = env.APP_VERSION ?: readVersion()
-                    String imageName = config.image_name ?: pipelineConfig?.libraries?.docker?.image_name ?: pipelineConfig?.libraries?.kubernetes?.image_name
+                    String imageName = pipelineConfig?.libraries?.docker?.image_name ?: pipelineConfig?.libraries?.kubernetes?.image_name
 
                     login()
 
