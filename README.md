@@ -256,7 +256,8 @@ Full Docker image lifecycle management.
 | `push(tags)` | Pushes list of tagged images to registry |
 | `containerValidate()` | Runs container briefly to verify it starts without crashing |
 | `cleanup(images)` | Removes local Docker images |
-| `promote()` | Pulls, re-tags, and pushes an image to a new tag |
+| `promoteDockerImage()` | Pulls, re-tags, and pushes a Docker image to a new target tag |
+| `promote()` | Alias for `promoteDockerImage()` |
 | `logout()` | Logs out of Docker registry |
 | `composeUp()` | Runs `docker compose up -d` |
 | `composeDown()` | Runs `docker compose down -v` |
