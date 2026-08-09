@@ -420,7 +420,7 @@ ansible {
     playbook_file              = 'site.yml'
     inventory_file             = 'inventory.ini'                    // Must match terraform's inventory_file
     ssh_creds                 = 'ansible_ssh_key'               // Jenkins SSH private key credential ID
-    terraform_job_name        = 'CI_CD_Project/terraform_infra' // Upstream job that archived inventory.ini
+    terraform_job_name        = 'test-infra'                    // Upstream job that archived inventory.ini
     terraform_build_selector  = 'lastSuccessful'                // Or a specific build number
     install_tools             = true
     become                    = true                            // Pass --become to ansible-playbook
