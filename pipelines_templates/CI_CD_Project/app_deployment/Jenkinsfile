@@ -198,13 +198,19 @@ pipeline {
             steps {
                 script {
                     String version = env.APP_VERSION ?: readVersion()
+                    String targetFolder = (env.BRANCH_NAME == 'main') ? 'prod' : 'dev'
                     String targetEnv = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
                     String featureBranch = "deploy/${version}-${targetEnv.toLowerCase()}-${env.BUILD_NUMBER}"
 
                     checkOutRemoteSCM(branch: 'main')
 
                     updateManifest(
-                        new_tag: version
+                        new_tag: version,
+                        target_folder: targetFolder
+                    )
+
+                    validateManifest(
+                        target_folder: targetFolder
                     )
 
                     gitPush(
@@ -216,8 +222,6 @@ pipeline {
                 }
             }
         }
-        
-    }
         
 
     post {

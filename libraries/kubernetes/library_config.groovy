@@ -11,6 +11,7 @@ fields {
         namespace           = String    // Kubernetes namespace. Default: 'default'
         manifests_dir       = String    // Directory inside manifests repo. Default: 'manifests-repo'
         manifests_branch    = String    // Branch of manifests repo. Default: 'main'
+        target_folder       = String    // Subfolder for environment manifests (e.g. 'dev', 'prod'). Default: '.'
         deployment          = String    // Deployment name for rollout status check
         wait_for_rollout    = Boolean   // Wait for rollout. Default: true
 
@@ -22,6 +23,7 @@ fields {
 steps {
     checkOutRemoteSCM
     updateManifest
+    validateManifest
     gitPush
     createPullRequest
     deploy

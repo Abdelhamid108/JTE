@@ -285,7 +285,9 @@ Kubernetes manifest updates and deployment via `sed` + `git push`.
 |:-----|:------------|
 | `checkOutRemoteSCM()` | Clones the manifests repository into `manifests-repo/` |
 | `updateManifest()` | Uses `sed` to update image tags in all YAML files |
+| `validateManifest()` | Validates YAML syntax and Kubernetes schema via `kubectl apply --dry-run=client` |
 | `gitPush()` | Commits and pushes manifest changes back to the repo |
+| `createPullRequest()` | Opens a Pull Request on GitHub against target branch |
 | `deploy()` | Applies manifests via `kubectl apply` and waits for rollout |
 
 **Configuration**:
