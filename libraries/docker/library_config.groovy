@@ -30,6 +30,7 @@ steps {
     tag
     push
     promote
+    promoteDockerImage
     logout
     cleanup
     containerValidate

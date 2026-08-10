@@ -18,12 +18,12 @@ List call(Map args = [:]) {
 
     // Primary tag: application version or git commit SHA as fallback
     if (appVersion) {
-        String versionImage = "${imageName}:${appVersion}"
+        String versionImage = "${imageName}:${branchName}-${appVersion}"
         sh "docker tag ${pipelineImage} ${versionImage}"
         generatedTags.add(versionImage)
     } else {
         String gitCommit = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-        String shaImage = "${imageName}:${gitCommit}"
+        String shaImage = "${imageName}:${branchName}-${gitCommit}"
         sh "docker tag ${pipelineImage} ${shaImage}"
         generatedTags.add(shaImage)
     }

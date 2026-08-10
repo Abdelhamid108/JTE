@@ -295,7 +295,8 @@ Full Docker image lifecycle management.
 | `push(tags)` | Pushes list of tagged images to registry |
 | `containerValidate()` | Runs container briefly to verify it starts without crashing |
 | `cleanup(images)` | Removes local Docker images |
-| `promote()` | Pulls, re-tags, and pushes an image to a new tag |
+| `promoteDockerImage()` | Pulls, re-tags, and pushes a Docker image to a new target tag |
+| `promote()` | Alias for `promoteDockerImage()` |
 | `logout()` | Logs out of Docker registry |
 | `composeUp()` | Runs `docker compose up -d` |
 | `composeDown()` | Runs `docker compose down -v` |
@@ -324,7 +325,9 @@ Kubernetes manifest updates and deployment via `sed` + `git push`.
 |:-----|:------------|
 | `checkOutRemoteSCM()` | Clones the manifests repository into `manifests-repo/` |
 | `updateManifest()` | Uses `sed` to update image tags in all YAML files |
+| `validateManifest()` | Validates YAML syntax and Kubernetes schema via `kubectl apply --dry-run=client` |
 | `gitPush()` | Commits and pushes manifest changes back to the repo |
+| `createPullRequest()` | Opens a Pull Request on GitHub against target branch |
 | `deploy()` | Applies manifests via `kubectl apply` and waits for rollout |
 
 **Configuration**:

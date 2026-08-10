@@ -1,0 +1,54 @@
+// pipelines_templates/CI_CD_Project/app_CD/Jenkinsfile
+// GitOps CD pipeline for continuous deployment of Kubernetes manifests
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout Manifests') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy to DEV') {
+            when {
+                changeset "dev/**"
+            }
+            steps {
+                echo "Changes detected in dev/ folder. Syncing DEV CLUSTER"
+                input message: "Approve Deploying to DEV CLUSTER?", ok: "proceed"
+                deploy(
+                    namespace: 'weather-app',
+                    target_folder: 'dev'
+                )
+            }
+        }
+
+        stage('Deploy to PROD') {
+            when {
+                changeset "prod/**"
+            }
+            steps {
+                echo "Changes detected in prod/ folder. Syncing PROD CLUSTER"
+                input message: "Approve Deploying to PROD CLUSTER?", ok: "proceed"
+                deploy(
+                    namespace: 'weather-app',
+                    target_folder: 'prod'
+                )
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "CD Pipeline completed successfully. Clusters are synced with Git!"
+        }
+        failure {
+            echo "CD Pipeline failed. Check the logs to see why kubectl rejected the YAML."
+        }
+    }
+}

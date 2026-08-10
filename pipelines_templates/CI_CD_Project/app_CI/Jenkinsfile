@@ -172,15 +172,32 @@ pipeline {
 
         // ───────────────────────────────────────────
         // STAGE 11: Promote to PRODUCTION (main only)
-        //   No rebuild, no retest, no re-push
-        //   Reuses the immutable artifact from DEV
+        //   First validates & registers version in S3 PRODUCTION registry (fails fast if already deployed).
+        //   Then pulls dev image, re-tags for prod & latest, and pushes to registry.
         // ───────────────────────────────────────────
         stage('Promote to Production') {
             when {
                 branch 'main'
             }
             steps {
-                promoteVersion(target_environment: 'PRODUCTION')
+                script {
+                    String version   = env.APP_VERSION ?: readVersion()
+                    String imageName = pipelineConfig?.libraries?.docker?.image_name ?: pipelineConfig?.libraries?.kubernetes?.image_name
+
+                    promoteVersion(target_environment: 'PRODUCTION')
+
+                    login()
+
+                    promoteDockerImage(
+                        source_image: "${imageName}:dev-${version}",
+                        target_image: "${imageName}:prod-${version}"
+                    )
+
+                    promoteDockerImage(
+                        source_image: "${imageName}:dev-${version}",
+                        target_image: "${imageName}:latest"
+                    )
+                }
             }
         }
 
@@ -197,27 +214,32 @@ pipeline {
             }
             steps {
                 script {
+                    String version = env.APP_VERSION ?: readVersion()
+                    String targetFolder = (env.BRANCH_NAME == 'main') ? 'prod' : 'dev'
                     String targetEnv = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
-                    String featureBranch = "deploy/${env.APP_VERSION}-${targetEnv.toLowerCase()}-${env.BUILD_NUMBER}"
+                    String featureBranch = "deploy/${version}-${targetEnv.toLowerCase()}-${env.BUILD_NUMBER}"
 
                     checkOutRemoteSCM(branch: 'main')
 
                     updateManifest(
-                        new_tag: env.APP_VERSION
+                        new_tag: version,
+                        target_folder: targetFolder
                     )
+
+                    //validateManifest(
+                    //    target_folder: targetFolder
+                    //)
 
                     gitPush(
                         target_branch: 'main',
                         new_branch: featureBranch,
-                        commit_message: "ci: deploy ${env.APP_VERSION} to ${targetEnv} [skip ci]",
+                        commit_message: "ci: deploy ${version} to ${targetEnv} [skip ci]",
                         create_pr: true
                     )
                 }
             }
         }
-        
     }
-        
 
     post {
         always {

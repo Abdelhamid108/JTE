@@ -40,7 +40,7 @@ libraries {
         manifests_repo_url  = "https://github.com/mostafagheta/manifest.git"
         manifests_git_creds = "GitHub-creds"
         manifests_branch    = "main"
-        manifests_dir       = "."
+        manifests_dir       = "manifests-repo"
         image_name          = "abdelhameed208/atos-weather-app"
         kube_creds          = "kubeconfig-creds"
         namespace           = "default"
