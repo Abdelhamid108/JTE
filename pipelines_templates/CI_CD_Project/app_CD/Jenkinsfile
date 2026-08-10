@@ -9,6 +9,14 @@ pipeline {
         }
     }
 
+    parameters {
+        choice(
+            name: 'TARGET_ENVIRONMENT',
+            choices: ['auto', 'dev', 'prod', 'all'],
+            description: 'Target environment to deploy. "auto" uses git changeset triggers.'
+        )
+    }
+
     stages {
         stage('Checkout Manifests') {
             steps {
@@ -33,10 +41,13 @@ pipeline {
 
         stage('Deploy to DEV') {
             when {
-                changeset "dev/**"
+                anyOf {
+                    changeset "dev/**"
+                    expression { return params.TARGET_ENVIRONMENT == 'dev' || params.TARGET_ENVIRONMENT == 'all' }
+                }
             }
             steps {
-                echo "Changes detected in dev/ folder. Syncing DEV CLUSTER"
+                echo "Syncing DEV CLUSTER..."
                 input message: "Approve Deploying to DEV CLUSTER?", ok: "proceed"
                 k8sDeploy(
                     namespace: 'weather-app',
@@ -47,10 +58,13 @@ pipeline {
 
         stage('Deploy to PROD') {
             when {
-                changeset "prod/**"
+                anyOf {
+                    changeset "prod/**"
+                    expression { return params.TARGET_ENVIRONMENT == 'prod' || params.TARGET_ENVIRONMENT == 'all' }
+                }
             }
             steps {
-                echo "Changes detected in prod/ folder. Syncing PROD CLUSTER"
+                echo "Syncing PROD CLUSTER..."
                 input message: "Approve Deploying to PROD CLUSTER?", ok: "proceed"
                 k8sDeploy(
                     namespace: 'weather-app',
