@@ -40,9 +40,9 @@ void call(Map args = [:]) {
             # Start SSH tunnel in background
             ssh -f -N -L 6443:${masterIp}:6443 -o StrictHostKeyChecking=no -i "\$SSH_KEY" ${bastionUser}@${bastionIp}
             
-            # Fetch kubeconfig from Master
-            ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" ${bastionUser}@${bastionIp} \\
-                "ssh -o StrictHostKeyChecking=no ${bastionUser}@${masterIp} 'cat ~/.kube/config 2>/dev/null || sudo cat /etc/kubernetes/admin.conf'" > kubeconfig.tmp
+            # Fetch kubeconfig from Master via ProxyJump
+            ssh -o StrictHostKeyChecking=no -i "\$SSH_KEY" -J ${bastionUser}@${bastionIp} ${bastionUser}@${masterIp} \
+                "cat ~/.kube/config 2>/dev/null || sudo cat /etc/kubernetes/admin.conf" > kubeconfig.tmp
             chmod 600 kubeconfig.tmp
 
             # Apply manifests
