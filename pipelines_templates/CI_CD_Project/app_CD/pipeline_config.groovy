@@ -15,7 +15,7 @@ libraries {
         
         manifests_dir    = "."
         deployment       = "weather-app"
-        wait_for_rollout = true
+        wait_for_rollout = false
         ssh_creds        = "ansible_ssh_key"
         install_tools    = true
     }
