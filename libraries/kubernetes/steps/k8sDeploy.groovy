@@ -47,10 +47,6 @@ void call(Map args = [:]) {
                 "cat ~/.kube/config 2>/dev/null || sudo cat /etc/kubernetes/admin.conf" > kubeconfig.tmp
             chmod 600 kubeconfig.tmp
 
-            # Ensure target namespace exists before applying manifests
-            KUBECONFIG=kubeconfig.tmp kubectl create namespace ${namespace} --dry-run=client -o yaml | \
-                KUBECONFIG=kubeconfig.tmp kubectl apply --server=https://127.0.0.1:6443 --insecure-skip-tls-verify -f -
-
             # Apply manifests
             KUBECONFIG=kubeconfig.tmp kubectl apply -f ${deployPath}/ -n ${namespace} --server=https://127.0.0.1:6443 --insecure-skip-tls-verify
         """
