@@ -62,13 +62,14 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                retry(2) {
-                    deploy(
-                        playbook_file: 'master_playbook.yml'
-                    )
-                }
-                deploy(
-                    playbook_file: 'worker_playbook.yml'
+                parallel(
+                    'Configure Master': {
+                        deploy(playbook_file: 'master_playbook.yml')
+                    },
+                    'Configure Workers': {
+                        sleep 60
+                        deploy(playbook_file: 'worker_playbook.yml')
+                    }
                 )
             }
         }
