@@ -17,6 +17,12 @@ fields {
 
         git_user_name       = String    // Git commit author name. Default: 'jenkins-ci'
         git_user_email      = String    // Git commit author email. Default: 'jenkins@ci.local'
+
+        ssh_creds           = String    // SSH key credential ID for Bastion host. Default: 'ansible_ssh_key'
+        bastion_ip          = String    // Public IP or hostname of Bastion host
+        bastion_user        = String    // SSH user for Bastion host. Default: 'ec2-user'
+        master_ip           = String    // Private IP of Master node (to fetch kubeconfig if needed)
+        install_tools       = Boolean   // Install agent tools (kubectl, openssh-client). Default: false
     }
 }
 
@@ -27,4 +33,5 @@ steps {
     gitPush
     createPullRequest
     deploy
+    installTools
 }

@@ -2,11 +2,17 @@
 // JTE Configuration for GitOps CD Pipeline
 
 libraries {
+    ansible {
+        terraform_job_name        = 'Atos CI-CD Project/test-infra/main'
+        terraform_build_selector  = 'lastSuccessful'
+        inventory_file            = 'inventory.ini'
+    }
     kubernetes {
-        kube_creds       = "kubeconfig-creds"
         namespace        = "weather-app"
         manifests_dir    = "."
         deployment       = "weather-app"
         wait_for_rollout = true
+        ssh_creds        = "ansible_ssh_key"
+        install_tools    = true
     }
 }
