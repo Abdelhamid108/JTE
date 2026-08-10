@@ -9,6 +9,10 @@ libraries {
     }
     kubernetes {
         namespace        = "weather-app"
+        manifests_git_creds = "GitHub-creds"
+        manifests_repo_url  = "https://github.com/mostafagheta/manifest.git"
+        image_name          = "abdelhameed208/atos-weather-app"
+        
         manifests_dir    = "."
         deployment       = "weather-app"
         wait_for_rollout = true
