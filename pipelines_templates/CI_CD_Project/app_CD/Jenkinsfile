@@ -21,7 +21,7 @@ pipeline {
                 expression { return (pipelineConfig.libraries?.kubernetes?.install_tools == true || pipelineConfig.libraries?.ansible?.install_tools == true) }
             }
             steps {
-                installTools()
+                k8sInstallTools()
             }
         }
 
@@ -38,7 +38,7 @@ pipeline {
             steps {
                 echo "Changes detected in dev/ folder. Syncing DEV CLUSTER"
                 input message: "Approve Deploying to DEV CLUSTER?", ok: "proceed"
-                deploy(
+                k8sDeploy(
                     namespace: 'weather-app',
                     target_folder: 'dev'
                 )
@@ -52,7 +52,7 @@ pipeline {
             steps {
                 echo "Changes detected in prod/ folder. Syncing PROD CLUSTER"
                 input message: "Approve Deploying to PROD CLUSTER?", ok: "proceed"
-                deploy(
+                k8sDeploy(
                     namespace: 'weather-app',
                     target_folder: 'prod'
                 )

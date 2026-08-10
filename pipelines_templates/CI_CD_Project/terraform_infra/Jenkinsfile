@@ -29,7 +29,7 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                checkoutCode()
+                tfCheckoutCode()
             }
         }
 
@@ -38,7 +38,7 @@ pipeline {
                 expression { return pipelineConfig.libraries?.terraform?.install_tools == true }
             }
             steps {
-                installTools()
+                tfInstallTools()
             }
         }
 
@@ -81,7 +81,7 @@ pipeline {
                     if (params.ACTION == 'destroy') {
                         destroy()
                     } else {
-                        deploy()
+                        tfDeploy()
                     }
                 }
             }

@@ -23,14 +23,14 @@ fields {
 }
 
 steps {
-    checkoutCode
-    installTools
+    tfCheckoutCode
+    tfInstallTools
     init
     validate
     checkov
     plan
     approval
-    deploy
+    tfDeploy
     destroy
     archiveInventory
     terratest

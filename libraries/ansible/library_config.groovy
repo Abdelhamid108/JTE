@@ -28,9 +28,9 @@ fields {
 }
 
 steps {
-    checkoutCode
-    installTools
+    ansibleCheckoutCode
+    ansibleInstallTools
     fetchInventory
-    lint
-    deploy
+    ansibleLint
+    ansibleDeploy
 }

@@ -42,7 +42,7 @@ pipeline {
                 }
             }
             steps {
-                installTools()
+                npmInstallTools()
             }
         }
 
@@ -79,7 +79,7 @@ pipeline {
             }
             steps {
                 installDeps()
-                lint()
+                npmLint()
                 testApp()
                 buildApp()
             }

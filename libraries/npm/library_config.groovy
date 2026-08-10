@@ -14,9 +14,9 @@ fields {
 
 steps {
     installDeps
-    installTools
+    npmInstallTools
     buildApp
-    lint
+    npmLint
     testApp
     audit
 }

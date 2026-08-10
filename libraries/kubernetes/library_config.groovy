@@ -32,6 +32,6 @@ steps {
     validateManifest
     gitPush
     createPullRequest
-    deploy
-    installTools
+    k8sDeploy
+    k8sInstallTools
 }
