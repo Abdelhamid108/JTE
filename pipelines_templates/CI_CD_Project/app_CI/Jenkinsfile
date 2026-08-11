@@ -181,8 +181,8 @@ pipeline {
             }
             steps {
                 script {
-                    String version   = env.APP_VERSION ?: readVersion()
-                    String imageName = pipelineConfig?.libraries?.docker?.image_name ?: pipelineConfig?.libraries?.kubernetes?.image_name
+                    String version   = env.APP_VERSION
+                    String imageName = pipelineConfig.libraries.docker.image_name
 
                     promoteVersion(target_environment: 'PRODUCTION')
 
@@ -214,7 +214,7 @@ pipeline {
             }
             steps {
                 script {
-                    String version = env.APP_VERSION ?: readVersion()
+                    String version = env.APP_VERSION
                     String targetFolder = (env.BRANCH_NAME == 'main') ? 'prod' : 'dev'
                     String targetEnv = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
                     String featureBranch = "deploy/${version}-${targetEnv.toLowerCase()}-${env.BUILD_NUMBER}"
@@ -222,19 +222,12 @@ pipeline {
                     checkOutRemoteSCM(branch: 'main')
 
                     updateManifest(
-                        new_tag: version,
                         target_folder: targetFolder
                     )
 
-                    //validateManifest(
-                    //    target_folder: targetFolder
-                    //)
-
                     gitPush(
                         target_branch: 'main',
-                        new_branch: featureBranch,
-                        commit_message: "ci: deploy ${version} to ${targetEnv} [skip ci]",
-                        create_pr: true
+                        new_branch: featureBranch
                     )
                 }
             }

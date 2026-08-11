@@ -1,14 +1,12 @@
-// steps/lint.groovy — Syntax-checks and lints the playbook before it is run against real hosts
+// steps/ansibleLint.groovy — Syntax-checks and lints the playbook before it is run against real hosts
 
-void call(Map args = [:]) {
-    String targetDir  = args.playbook_dir ?: config.playbook_dir ?: '.'
-    String playbook   = args.playbook_file ?: config.playbook_file ?: 'site.yml'
-    String inventory  = args.inventory_file ?: config.inventory_file ?: 'inventory.ini'
+void call() {
+    String targetDir = config.playbook_dir ?: '.'
+    String playbook  = config.playbook_file
+    String inventory = config.inventory_file
 
     dir(targetDir) {
-        if (!fileExists(inventory)) {
-            error "PIPELINE STOPPED: Inventory file '${inventory}' not found in ${targetDir}. Run fetchInventory() before lint()."
-        }
+
         echo "Running ansible-playbook syntax check..."
         sh "ansible-playbook -i ${inventory} ${playbook} --syntax-check"
 

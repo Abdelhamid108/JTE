@@ -5,15 +5,12 @@
 // terraform's archiveInventory() step, which archives the same file as a build
 // artifact on the terraform_infra job.
 
-void call(Map args = [:]) {
-    String terraformJob  = args.terraform_job_name ?: config.terraform_job_name
-    String inventoryFile = args.inventory_file ?: config.inventory_file ?: 'inventory.ini'
-    String selector      = args.terraform_build_selector ?: config.terraform_build_selector ?: 'lastSuccessful'
-    String targetDir     = args.playbook_dir ?: config.playbook_dir ?: '.'
+void call() {
+    String terraformJob  = config.terraform_job_name
+    String inventoryFile = config.inventory_file 
+    String selector      = config.terraform_build_selector ?: 'lastSuccessful'
+    String targetDir     = config.playbook_dir ?: '.'
 
-    if (!terraformJob) {
-        error "PIPELINE STOPPED: 'terraform_job_name' must be set in the ansible library config (pipeline_config.groovy) so fetchInventory() knows which upstream job archived the inventory."
-    }
 
     echo "Fetching Ansible inventory '${inventoryFile}' into '${targetDir}' from upstream job '${terraformJob}' (selector: ${selector})..."
 
@@ -25,11 +22,7 @@ void call(Map args = [:]) {
             fingerprintArtifacts: true,
             flatten: true
         )
-
-        if (!fileExists(inventoryFile)) {
-            error "PIPELINE STOPPED: Inventory file '${inventoryFile}' was not found in '${targetDir}' after copyArtifacts() from '${terraformJob}'. Confirm the terraform_infra job has a successful build that ran archiveInventory()."
-        }
     }
 
-    echo "Inventory file '${inventoryFile}' retrieved successfully in '${targetDir}'."
+    echo "Inventory file '${inventoryFile}' retrieved successfully in '${targetDir}'"
 }

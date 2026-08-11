@@ -1,15 +1,15 @@
 // steps/buildApp.groovy
 
-void call (Map args = [:]){
-    String dirPath   = args.app_dir ?: config.app_dir ?: '.'
-    boolean skipBuild = args.skip_build ?: config.skip_build ?: false
+void call() {
+    String dirPath    = config.app_dir ?: '.'
+    boolean skipBuild = config.skip_build ?: false
 
-    if (skipBuild){
+    if (skipBuild) {
         echo "Skipping Build step as per Configuration"
         return
     }
 
-    dir (dirPath){
+    dir(dirPath) {
         echo "Building Application artifact..."
         sh "npm run build --if-present"
     }

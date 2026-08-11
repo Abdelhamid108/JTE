@@ -2,9 +2,9 @@
 
 void call() {
     String targetDir  = config.infra_dir ?: '.'
-    String tfVarsCred = config.tf_vars ?: 'NONE'
-    String cloudCreds = config.cloud_creds ?: 'NONE'
-    boolean isDestroy = (params.ACTION == 'destroy') || (config.is_destroy ? config.is_destroy.toString().toBoolean() : false)
+    String tfVarsCred = config.tf_vars
+    String cloudCreds = config.cloud_creds
+    boolean isDestroy = (params.ACTION == 'destroy') || (config.is_destroy ?: false)
 
     def runPlan = {
         String destroyFlag = isDestroy ? "-destroy" : ""
@@ -20,7 +20,7 @@ void call() {
             }
         }
 
-        if (tfVarsCred != 'NONE') {
+        if (tfVarsCred) {
             withCredentials([file(credentialsId: tfVarsCred, variable: 'TF_VARS_FILE')]) {
                 executePlan("-var-file=${env.TF_VARS_FILE}")
             }
@@ -29,7 +29,7 @@ void call() {
         }
     }
 
-    if (cloudCreds && cloudCreds != 'NONE') {
+    if (cloudCreds) {
         withCredentials([aws(credentialsId: cloudCreds, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
             runPlan()
         }

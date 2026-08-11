@@ -15,9 +15,6 @@ fields {
         deployment          = String    // Deployment name for rollout status check
         wait_for_rollout    = Boolean   // Wait for rollout. Default: true
 
-        git_user_name       = String    // Git commit author name. Default: 'jenkins-ci'
-        git_user_email      = String    // Git commit author email. Default: 'jenkins@ci.local'
-
         ssh_creds           = String    // SSH key credential ID for Bastion host. Default: 'ansible_ssh_key'
         bastion_ip          = String    // Public IP or hostname of Bastion host
         bastion_user        = String    // SSH user for Bastion host. Default: 'ec2-user'
@@ -31,7 +28,6 @@ steps {
     updateManifest
     validateManifest
     gitPush
-    createPullRequest
     k8sDeploy
     k8sInstallTools
 }

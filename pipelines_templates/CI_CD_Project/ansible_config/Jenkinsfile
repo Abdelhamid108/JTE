@@ -10,13 +10,7 @@ pipeline {
         }
     }
 
-    parameters {
-        choice(
-            name: 'TARGET_ENVIRONMENT',
-            choices: ['dev', 'prod'],
-            description: 'Target environment — must match the terraform_infra run that produced the inventory'
-        )
-    }
+
 
     stages {
         stage('Checkout Code') {
@@ -52,7 +46,7 @@ pipeline {
                 not { changeRequest() }
             }
             steps {
-                input message: "Approve Ansible configuration run against ${params.TARGET_ENVIRONMENT}?", ok: 'proceed'
+                input message: "Approve Ansible configuration run against the target environment?", ok: 'proceed'
             }
         }
 

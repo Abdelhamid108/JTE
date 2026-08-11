@@ -11,19 +11,10 @@ pipeline {
 
     parameters {
         choice(
-            name: 'TARGET_ENVIRONMENT',
-            choices: ['dev', 'prod'],
-            description: 'Select target environment for Terraform plan/apply'
-        )
-        choice(
             name: 'ACTION',
             choices: ['apply', 'destroy'],
             description: 'Action to perform on infrastructure'
         )
-    }
-
-    environment {
-        TARGET_ENV = "${params.TARGET_ENVIRONMENT ?: 'dev'}"
     }
 
     stages {

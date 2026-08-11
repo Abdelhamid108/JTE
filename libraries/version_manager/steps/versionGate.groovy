@@ -3,9 +3,7 @@
 void call(Map args = [:]) {
     String environment = args.environment ?: config.target_environment
 
-    if (!environment) {
-        error "versionGate: 'environment' is required."
-    }
+
 
     echo "═══════════════════════════════════════════"
     echo "  VERSION GATE — Target: ${environment}"

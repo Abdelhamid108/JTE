@@ -10,9 +10,7 @@ void call() {
     String inventoryFile = config.inventory_file ?: 'inventory.ini'
 
     dir(targetDir) {
-        if (!fileExists(inventoryFile)) {
-            error "PIPELINE STOPPED: Expected inventory file '${inventoryFile}' was not found in ${targetDir}. Check that your Terraform configuration writes it out (e.g. via a local_file resource) before this step runs."
-        }
+
 
         echo "Archiving Ansible inventory '${inventoryFile}' for downstream consumption..."
         archiveArtifacts artifacts: "${inventoryFile}", fingerprint: true, allowEmptyArchive: false

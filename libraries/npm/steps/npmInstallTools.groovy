@@ -1,6 +1,6 @@
-// steps/installTools.groovy — Install application pipeline agent dependencies
+// steps/npmInstallTools.groovy — Install application pipeline agent dependencies
 
-void call(Map args = [:]) {
+void call() {
     echo "Installing agent dependencies (AWS CLI, kubectl CLI, Docker CLI, Git)..."
     sh '''
         if command -v apk >/dev/null 2>&1; then

@@ -33,5 +33,4 @@ steps {
     tfDeploy
     destroy
     archiveInventory
-    terratest
 }

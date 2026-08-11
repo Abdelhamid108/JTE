@@ -1,23 +1,20 @@
-// steps/build.groovy
+// steps/buildImage.groovy
 
-String call(Map args = [:]) {
-    String imageName = args.image_name ?: config.image_name ?: 'NONE' 
-    String dockerFileName = args.docker_file_name ?: config.docker_file_name ?: 'Dockerfile'
-    String buildDir = args.dockerfile_dir ?: config.docker_file_dir ?: '.'
-    boolean noCache = config.no_cache ?: false
-    String noCacheFlag = noCache ? "--no-cache" : ""
+String call() {
+    String imageName      = config.image_name
+    String dockerFileName = config.docker_file_name ?: 'Dockerfile'
+    String buildDir       = config.docker_file_dir ?: '.'
 
-    if (imageName != 'NONE') {    
-        String pipelineImage = "${imageName}:build-${env.BUILD_ID}"
 
-        echo "Building Docker Image: ${pipelineImage}"
 
-        dir(buildDir) {
-            sh "docker build -f ${dockerFileName} -t ${pipelineImage} ${noCacheFlag} ."
-        }
-        env.PIPELINE_IMAGE = pipelineImage
-        return pipelineImage
-    } else {
-        error "You Must Provide Image Name"
+    String pipelineImage = "${imageName}:build-${env.BUILD_ID}"
+
+    echo "Building Docker Image: ${pipelineImage}"
+
+    dir(buildDir) {
+        sh "docker build -f ${dockerFileName} -t ${pipelineImage} "
     }
+
+    env.PIPELINE_IMAGE = pipelineImage
+    return pipelineImage
 }
