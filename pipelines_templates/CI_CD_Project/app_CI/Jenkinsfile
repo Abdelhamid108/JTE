@@ -14,10 +14,7 @@ pipeline {
         }
     }
 
-    environment {
-        APP_VERSION    = ''
-        PIPELINE_IMAGE = ''
-    }
+
 
     stages {
 
@@ -51,9 +48,7 @@ pipeline {
         // ───────────────────────────────────────────
         stage('Read Version') {
             steps {
-                script {
-                    env.APP_VERSION = readVersion()
-                }
+                readVersion()
             }
         }
 
@@ -93,9 +88,7 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                script {
-                    env.PIPELINE_IMAGE = buildImage()
-                }
+                buildImage()
             }
         }
 
