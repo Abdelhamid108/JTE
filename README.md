@@ -9,8 +9,10 @@ A production-grade, modular CI/CD pipeline framework built on the [Jenkins Templ
 - [Architecture Overview](#architecture-overview)
 - [Repository Structure](#repository-structure)
 - [Pipeline Workflows](#pipeline-workflows)
-  - [Application Deployment Pipeline](#application-deployment-pipeline)
+  - [Application CI Pipeline](#application-ci-pipeline)
+  - [Application CD Pipeline](#application-cd-pipeline)
   - [Terraform Infrastructure Pipeline](#terraform-infrastructure-pipeline)
+  - [Ansible Configuration Pipeline](#ansible-configuration-pipeline)
 - [Libraries Reference](#libraries-reference)
   - [npm](#npm-library)
   - [docker](#docker-library)
@@ -79,24 +81,23 @@ JTE/
 │   │   ├── library_config.groovy
 │   │   └── steps/
 │   │       ├── installDeps.groovy
-│   │       ├── build.groovy
-│   │       ├── lint.groovy
+│   │       ├── buildApp.groovy
+│   │       ├── npmLint.groovy
 │   │       ├── testApp.groovy
-│   │       └── audit.groovy
+│   │       ├── audit.groovy
+│   │       └── npmInstallTools.groovy
 │   │
 │   ├── docker/                                   # Docker image lifecycle
 │   │   ├── library_config.groovy
 │   │   └── steps/
 │   │       ├── login.groovy
-│   │       ├── build.groovy
+│   │       ├── buildImage.groovy
 │   │       ├── tag.groovy
 │   │       ├── push.groovy
 │   │       ├── containerValidate.groovy
 │   │       ├── cleanup.groovy
-│   │       ├── promote.groovy
-│   │       ├── logout.groovy
-│   │       ├── composeUp.groovy
-│   │       └── composeDown.groovy
+│   │       ├── promoteDockerImage.groovy
+│   │       └── logout.groovy
 │   │
 │   ├── kubernetes/                               # Manifest updates & deployment
 │   │   ├── library_config.groovy
@@ -104,7 +105,9 @@ JTE/
 │   │       ├── checkOutRemoteSCM.groovy
 │   │       ├── updateManifest.groovy
 │   │       ├── gitPush.groovy
-│   │       └── deploy.groovy
+│   │       ├── validateManifest.groovy
+│   │       ├── k8sDeploy.groovy
+│   │       └── k8sInstallTools.groovy
 │   │
 │   ├── version_manager/                          # Version registry (S3-backed)
 │   │   ├── library_config.groovy
@@ -118,25 +121,38 @@ JTE/
 │   ├── terraform/                                # Infrastructure provisioning
 │   │   ├── library_config.groovy
 │   │   └── steps/
-│   │       ├── checkoutCode.groovy
+│   │       ├── tfCheckoutCode.groovy
 │   │       ├── init.groovy
 │   │       ├── validate.groovy
 │   │       ├── checkov.groovy
 │   │       ├── plan.groovy
 │   │       ├── approval.groovy
-│   │       ├── deploy.groovy
+│   │       ├── tfDeploy.groovy
 │   │       ├── destroy.groovy
-│   │       └── terratest.groovy
+│   │       ├── tfInstallTools.groovy
+│   │       └── archiveInventory.groovy
 │   │
 │   └── ansible/                                  # Configuration management
-│       └── library_config.groovy
+│       ├── library_config.groovy
+│       └── steps/
+│           ├── ansibleCheckoutCode.groovy
+│           ├── ansibleInstallTools.groovy
+│           ├── fetchInventory.groovy
+│           ├── ansibleLint.groovy
+│           └── ansibleDeploy.groovy
 │
 └── pipelines_templates/                          # Pipeline Templates
     └── CI_CD_Project/
-        ├── app_deployment/                       # Application CI/CD
+        ├── app_CI/                               # Application CI
         │   ├── Jenkinsfile
         │   └── pipeline_config.groovy
-        └── terraform_infra/                      # Infrastructure IaC
+        ├── app_CD/                               # Application CD (GitOps)
+        │   ├── Jenkinsfile
+        │   └── pipeline_config.groovy
+        ├── terraform_infra/                      # Infrastructure IaC
+        │   ├── Jenkinsfile
+        │   └── pipeline_config.groovy
+        └── ansible_pipeline/                       # Configuration management (consumes terraform_infra's inventory)
             ├── Jenkinsfile
             └── pipeline_config.groovy
 ```
@@ -145,9 +161,9 @@ JTE/
 
 ## Pipeline Workflows
 
-### Application Deployment Pipeline
+### Application CI Pipeline
 
-The application deployment pipeline is **branch-aware** and implements three distinct workflows using a single `Jenkinsfile`.
+The application CI pipeline (`app_CI`) is **branch-aware** and implements three distinct workflows using a single `Jenkinsfile`.
 
 #### Workflow 1 — Pull Request to `dev`
 
@@ -161,11 +177,11 @@ Checkout → Install Agent Dependencies → Read Version → Version Gate
 
 | What Happens | What Does NOT Happen |
 |:-------------|:---------------------|
-| ✅ Version uniqueness check | ❌ No Docker login |
-| ✅ npm install, lint, test, build | ❌ No image tagging |
-| ✅ Docker image built locally | ❌ No image push |
-| ✅ Container runtime validation | ❌ No manifest update |
-| ✅ Registry updated: `PR_VALIDATED` | ❌ No deployment |
+| [x] Version uniqueness check | [ ] No Docker login |
+| [x] npm install, lint, test, build | [ ] No image tagging |
+| [x] Docker image built locally | [ ] No image push |
+| [x] Container runtime validation | [ ] No manifest update |
+| [x] Registry updated: `PR_VALIDATED` | [ ] No deployment |
 
 #### Workflow 2 — Merge to `dev`
 
@@ -188,7 +204,34 @@ Checkout → Read Version → Promote Version (PRODUCTION)
 → Checkout Manifests Repo (`main`) → Update Image Tag (sed) → Create Branch & Push → Create PR into `main`
 ```
 
-> **⚠️ IMPORTANT**: This workflow does **NOT** rebuild, retest, or re-push the Docker image. It reuses the exact immutable artifact that was built and pushed during Workflow 2.
+> **IMPORTANT**: This workflow does **NOT** rebuild, retest, or re-push the Docker image. It reuses the exact immutable artifact that was built and pushed during Workflow 2.
+
+---
+
+### Application CD Pipeline
+
+The application CD pipeline (`app_CD`) handles continuous deployment to Kubernetes using GitOps principles.
+
+#### Parameters
+
+| Parameter | Options | Description |
+|:----------|:--------|:------------|
+| `TARGET_ENVIRONMENT` | `auto`, `dev`, `prod`, `all` | Target environment to deploy. `auto` relies on changeset detection. |
+
+#### Workflow
+
+```
+Checkout Manifests → Install Agent Dependencies → Fetch Terraform Inventory
+→ Deploy to DEV (Approval Guardrail + kubectl apply)
+→ Deploy to PROD (Approval Guardrail + kubectl apply)
+```
+
+| Trigger | Behavior |
+|:--------|:---------|
+| **Changeset `dev/**`** | Prompts for approval to deploy to the DEV cluster. |
+| **Changeset `prod/**`** | Prompts for approval to deploy to the PROD cluster. |
+
+> **Note**: This CD pipeline retrieves the `inventory.ini` generated by Terraform to seamlessly map infrastructure configuration for deployments.
 
 ---
 
@@ -214,7 +257,35 @@ Checkout Code → Install Dependencies (Checkov)
 | Trigger | Behavior |
 |:--------|:---------|
 | **Pull Request** | Runs `init` → `validate` → `checkov` → `plan`. Does NOT apply. |
-| **Merge to `main`** | Full pipeline with manual **Approval Guardrail** before `deploy` or `destroy`. |
+| **Merge to `main`** | Full pipeline with manual **Approval Guardrail** before `deploy` or `destroy`, followed by `archiveInventory` (skipped on `destroy`). |
+
+---
+
+### Ansible Configuration Pipeline
+
+Separate, single-branch (`main`) pipeline that configures the hosts Terraform provisioned. It never talks to Terraform or the cloud provider directly — it only consumes the `inventory.ini` artifact that `terraform_infra` archived.
+
+#### Parameters
+
+| Parameter | Options | Description |
+|:----------|:--------|:------------|
+| `TARGET_ENVIRONMENT` | `dev`, `prod` | Must match the `terraform_infra` run that produced the inventory being consumed |
+
+#### Workflow
+
+```
+Checkout Code → Install Dependencies (Ansible)
+→ Fetch Terraform Inventory (Copy Artifact)
+→ Syntax Check & Lint
+→ Approval Guardrail → Configure Hosts (ansible-playbook)
+```
+
+| Trigger | Behavior |
+|:--------|:---------|
+| **Pull Request** | Runs `ansibleCheckoutCode` → `ansibleInstallTools` → `fetchInventory` → `ansibleLint`. Does NOT run the playbook. |
+| **Merge to `main`** | Full pipeline with manual **Approval Guardrail** before `ansibleDeploy` runs `ansible-playbook` against the fetched inventory. |
+
+> **Dependency**: this pipeline requires the `terraform_infra` job (identified by `terraform_job_name` in its config) to have at least one successful build where `archiveInventory()` ran, since `fetchInventory()` copies its artifact from that build.
 
 ---
 
@@ -227,9 +298,9 @@ Application build and test steps for Node.js projects.
 | Step | Description |
 |:-----|:------------|
 | `installDeps()` | Runs `npm install` |
-| `installTools()` | Installs agent dependencies (AWS CLI, kubectl CLI, Docker CLI, Git) |
-| `npm.buildApp()` | Runs `npm run build` |
-| `lint()` | Runs the project linter |
+| `npmInstallTools()` | Installs agent dependencies (AWS CLI, kubectl CLI, Docker CLI, Git) |
+| `buildApp()` | Runs `npm run build` |
+| `npmLint()` | Runs the project linter |
 | `testApp()` | Runs `npm test` |
 | `audit()` | Runs `npm audit` |
 
@@ -237,7 +308,6 @@ Application build and test steps for Node.js projects.
 ```groovy
 npm {
     app_dir       = '.'        // Directory containing package.json
-    skip_lint     = false      // Set true to skip linting
     install_tools = true       // Set true to install agent dependencies (aws-cli, kubectl, etc.)
 }
 ```
@@ -251,16 +321,13 @@ Full Docker image lifecycle management.
 | Step | Description |
 |:-----|:------------|
 | `login()` | Authenticates to Docker registry |
-| `docker.buildImage()` | Builds Docker image, returns image reference |
+| `buildImage()` | Builds Docker image, returns image reference |
 | `tag()` | Tags image with version, branch, and optional release tags |
 | `push(tags)` | Pushes list of tagged images to registry |
 | `containerValidate()` | Runs container briefly to verify it starts without crashing |
 | `cleanup(images)` | Removes local Docker images |
 | `promoteDockerImage()` | Pulls, re-tags, and pushes a Docker image to a new target tag |
-| `promote()` | Alias for `promoteDockerImage()` |
 | `logout()` | Logs out of Docker registry |
-| `composeUp()` | Runs `docker compose up -d` |
-| `composeDown()` | Runs `docker compose down -v` |
 
 **Configuration**:
 ```groovy
@@ -270,7 +337,6 @@ docker {
     registry_url          = 'https://index.docker.io/v1/'
     docker_file_name      = 'Dockerfile'
     docker_file_dir       = '.'
-    no_cache              = false
     validate_wait_seconds = 10       // Seconds to wait during container validation
     // health_url          = 'http://localhost:3000/health'  // Optional health endpoint
 }
@@ -284,12 +350,12 @@ Kubernetes manifest updates and deployment via `sed` + `git push`.
 
 | Step | Description |
 |:-----|:------------|
+| `k8sInstallTools()` | Installs Kubernetes CLI (kubectl) on the agent |
 | `checkOutRemoteSCM()` | Clones the manifests repository into `manifests-repo/` |
 | `updateManifest()` | Uses `sed` to update image tags in all YAML files |
 | `validateManifest()` | Validates YAML syntax and Kubernetes schema via `kubectl apply --dry-run=client` |
 | `gitPush()` | Commits and pushes manifest changes back to the repo |
-| `createPullRequest()` | Opens a Pull Request on GitHub against target branch |
-| `deploy()` | Applies manifests via `kubectl apply` and waits for rollout |
+| `k8sDeploy()` | Applies manifests via `kubectl apply` and waits for rollout |
 
 **Configuration**:
 ```groovy
@@ -340,14 +406,16 @@ Terraform infrastructure provisioning with security scanning and approval gates.
 
 | Step | Description |
 |:-----|:------------|
-| `checkoutCode()` | Checks out the infrastructure repository |
+| `tfInstallTools()` | Installs Checkov and other dependencies at runtime |
+| `tfCheckoutCode()` | Checks out the infrastructure repository |
 | `init()` | Runs `terraform init -reconfigure` |
 | `validate()` | Runs `terraform fmt -check` and `terraform validate` |
 | `checkov()` | Runs Checkov security scan against Terraform code |
 | `plan()` | Generates and archives a Terraform plan |
 | `approval()` | Manual approval gate before apply/destroy |
-| `deploy()` | Applies the archived Terraform plan |
+| `tfDeploy()` | Applies the archived Terraform plan |
 | `destroy()` | Applies a destroy plan |
+| `archiveInventory()` | Archives the Ansible inventory file written by Terraform as a Jenkins build artifact |
 
 **Configuration**:
 ```groovy
@@ -358,6 +426,7 @@ terraform {
     is_destroy    = false
     install_tools = true                // Install Checkov at runtime
     softFail      = false               // Checkov soft-fail mode
+    inventory_file = 'inventory.ini'        // Ansible inventory file Terraform writes out; archived by archiveInventory()
 }
 ```
 
@@ -365,7 +434,31 @@ terraform {
 
 ### ansible Library
 
-> 🚧 **Placeholder** — Configuration management library. Steps to be implemented.
+Configuration management against the hosts provisioned by the `terraform` library. It does not provision infrastructure itself — it consumes the inventory that Terraform produced and archived, then runs a playbook against it.
+
+| Step | Description |
+|:-----|:------------|
+| `ansibleCheckoutCode()` | Checks out the repository containing the Ansible playbooks |
+| `ansibleInstallTools()` | Installs Ansible + `ansible-lint` and SSH client tooling on the agent |
+| `fetchInventory()` | Uses the Copy Artifact plugin to pull the `inventory.ini` artifact archived by the upstream `terraform_infra` job |
+| `ansibleLint()` | Runs `ansible-playbook --syntax-check` and `ansible-lint` against the playbook before it touches real hosts |
+| `ansibleDeploy()` | Runs `ansible-playbook` against the fetched inventory, using an SSH private key credential |
+
+**Configuration**:
+```groovy
+ansible {
+    playbook_dir              = 'ansible'                       // Directory containing site.yml / roles
+    playbook_file              = 'site.yml'
+    inventory_file             = 'inventory.ini'                    // Must match terraform's inventory_file
+    ssh_creds                 = 'ansible_ssh_key'               // Jenkins SSH private key credential ID
+    terraform_job_name        = 'Atos CI-CD Project/test-infra/main' // Upstream job that archived inventory.ini
+    terraform_build_selector  = 'lastSuccessful'                // Or a specific build number
+    install_tools             = true
+    become                    = true                            // Pass --become to ansible-playbook
+}
+```
+
+> **How the two pipelines connect**: `terraform_infra` provisions the EC2 hosts, writes `hosts.ini` from Terraform outputs (e.g. via a `local_file` resource), and archives it with `archiveInventory()`. The separate `ansible_pipeline` pipeline then runs `fetchInventory()`, which uses the Jenkins **Copy Artifact** plugin to copy that exact `hosts.ini` from the terraform job's last successful build into its own workspace before running the playbook. This keeps the inventory Jenkins-managed and versioned per build, rather than regenerated or hand-copied between jobs.
 
 ---
 
@@ -453,14 +546,14 @@ The version_manager library supports two modes:
 
 ### Setting Up a New Application Project
 
-1. **Create a `pipeline_config.groovy`** in your application repository root, pointing to the app deployment template:
+1. **Create a `pipeline_config.groovy`** in your application repository root, pointing to the app CI template:
 
 ```groovy
 template_sources {
     merge = true
 }
 
-pipeline_template = 'app_deployment/Jenkinsfile'
+pipeline_template = 'app_CI/Jenkinsfile'
 
 libraries {
     npm {
@@ -510,6 +603,8 @@ aws s3 cp version-registry.json s3://your-bucket/version-registry.json
 | [Docker Pipeline](https://plugins.jenkins.io/docker-workflow/) | Docker agent support |
 | [Pipeline Utility Steps](https://plugins.jenkins.io/pipeline-utility-steps/) | Optional (Native Groovy `JsonSlurperClassic` is now used for JSON handling) |
 | [AWS Credentials](https://plugins.jenkins.io/aws-credentials/) | AWS credential binding (`aws()`) |
+| [Copy Artifact](https://plugins.jenkins.io/copyartifact/) | Lets the `ansible_pipeline` job pull `inventory.ini` from the `terraform_infra` job's build (`fetchInventory()`) |
+| [SSH Agent](https://plugins.jenkins.io/ssh-agent/) | Provides `sshUserPrivateKey` credential binding used by `ansibleDeploy()` |
 
 ### Jenkins Credentials
 
@@ -520,6 +615,7 @@ aws s3 cp version-registry.json s3://your-bucket/version-registry.json
 | AWS creds | AWS Credentials | S3 registry access, Terraform |
 | Kubeconfig | Secret File | Kubernetes deployment |
 | TF vars | Secret File | Terraform `.tfvars` file |
+| Ansible SSH key | SSH Username with Private Key | `ansible-playbook` connections to provisioned hosts |
 
 ### Infrastructure
 
@@ -550,3 +646,12 @@ aws s3 cp version-registry.json s3://your-bucket/version-registry.json
 7. **Merge to `dev`** — the pipeline builds, pushes the immutable image, and updates DEV manifests.
 
 8. **Merge `dev` to `main`** — the pipeline promotes the artifact to PRODUCTION without rebuilding.
+
+---
+
+## Future Improvements
+
+- **SonarQube Integration**: Adding the Sonar library for static code analysis.
+- **Trivy**: Integrating Trivy for container image vulnerability scanning.
+- **Artifact Management**: Pushing artifacts using external storage or artifact repositories.
+- **External Secrets Manager**: Handling different scenarios and environments with an external secrets manager for improved security.

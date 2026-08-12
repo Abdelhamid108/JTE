@@ -1,5 +1,4 @@
 // pipelines_templates/CI_CD_Project/terraform_infra/Jenkinsfile
-// Single-branch (main) Terraform Infrastructure Pipeline
 
 pipeline {
     agent {
@@ -11,25 +10,16 @@ pipeline {
 
     parameters {
         choice(
-            name: 'TARGET_ENVIRONMENT',
-            choices: ['dev', 'prod'],
-            description: 'Select target environment for Terraform plan/apply'
-        )
-        choice(
             name: 'ACTION',
             choices: ['apply', 'destroy'],
             description: 'Action to perform on infrastructure'
         )
     }
 
-    environment {
-        TARGET_ENV = "${params.TARGET_ENVIRONMENT ?: 'dev'}"
-    }
-
     stages {
         stage('Checkout Code') {
             steps {
-                checkoutCode()
+                tfCheckoutCode()
             }
         }
 
@@ -38,7 +28,7 @@ pipeline {
                 expression { return pipelineConfig.libraries?.terraform?.install_tools == true }
             }
             steps {
-                installTools()
+                tfInstallTools()
             }
         }
 
@@ -81,9 +71,20 @@ pipeline {
                     if (params.ACTION == 'destroy') {
                         destroy()
                     } else {
-                        deploy()
+                        tfDeploy()
                     }
                 }
+            }
+        }
+        
+        stage('Archive Ansible Inventory') {
+            when {
+                branch 'main'
+                not { changeRequest() }
+                expression { return params.ACTION != 'destroy' }
+            }
+            steps {
+                archiveInventory()
             }
         }
     }

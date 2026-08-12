@@ -1,12 +1,8 @@
 // steps/login.groovy
 
-void call(Map args = [:]) {
-    String credsId     = args.registry_creds ?: config.registry_creds
-    String registryUrl = args.registry_url   ?: config.registry_url ?: 'https://index.docker.io/v1/'
-
-    if (!credsId) {
-        error "login: You must provide a 'registry_creds' credential ID."
-    }
+void call() {
+    String credsId     = config.registry_creds
+    String registryUrl = config.registry_url ?: 'https://index.docker.io/v1/'
 
     echo "Logging into Docker registry (${registryUrl})..."
 

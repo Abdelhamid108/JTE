@@ -14,5 +14,8 @@ libraries {
         is_destroy          = false
         install_tools       = true
         softFail            = true
+        ansible_dir         = 'ansible'
+        inventory_file      = 'inventory.ini'      // Written by Terraform (local_file resource); archived for the ansible_pipeline pipeline
+
     }
 }

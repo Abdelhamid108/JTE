@@ -1,0 +1,74 @@
+
+pipeline {
+    agent {
+        docker {
+            image "python:3.12-alpine"
+            args '-u root:root --entrypoint='
+        }
+    }
+
+
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                ansibleCheckoutCode()
+            }
+        }
+
+        stage('Install Dependencies') {
+            when {
+                expression { return pipelineConfig.libraries?.ansible?.install_tools == true }
+            }
+            steps {
+                ansibleInstallTools()
+            }
+        }
+
+        stage('Fetch Terraform Inventory') {
+            steps {
+                fetchInventory()
+            }
+        }
+
+        stage('Syntax Check & Lint') {
+            steps {
+                ansibleLint()
+            }
+        }
+
+        stage('Approval Guardrail') {
+            when {
+                branch 'main'
+                not { changeRequest() }
+            }
+            steps {
+                input message: "Approve Ansible configuration run against the target environment?", ok: 'proceed'
+            }
+        }
+
+        stage('Configure Hosts') {
+            when {
+                branch 'main'
+                not { changeRequest() }
+            }
+            steps {
+                parallel(
+                    'Configure Master': {
+                        ansibleDeploy(playbook_file: 'master_playbook.yml')
+                    },
+                    'Configure Workers': {
+                        sleep 60
+                        ansibleDeploy(playbook_file: 'worker_playbook.yml')
+                    }
+                )
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}

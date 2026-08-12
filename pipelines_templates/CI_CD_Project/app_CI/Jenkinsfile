@@ -1,5 +1,4 @@
 // pipelines_templates/CI_CD_Project/app_deployment/Jenkinsfile
-// Branch-aware CI/CD pipeline for GitOps-style deployments using Docker Agent
 //
 // Workflows:
 //   PR to dev       → Validate, Read Version, Version Gate, Install Dependencies, Build & Test, Docker Build, Container Validate, Register (PR_VALIDATED)
@@ -14,10 +13,7 @@ pipeline {
         }
     }
 
-    environment {
-        APP_VERSION    = ''
-        PIPELINE_IMAGE = ''
-    }
+
 
     stages {
 
@@ -42,7 +38,7 @@ pipeline {
                 }
             }
             steps {
-                installTools()
+                npmInstallTools()
             }
         }
 
@@ -51,9 +47,7 @@ pipeline {
         // ───────────────────────────────────────────
         stage('Read Version') {
             steps {
-                script {
-                    env.APP_VERSION = readVersion()
-                }
+                readVersion()
             }
         }
 
@@ -79,7 +73,7 @@ pipeline {
             }
             steps {
                 installDeps()
-                lint()
+                npmLint()
                 testApp()
                 buildApp()
             }
@@ -93,9 +87,7 @@ pipeline {
                 not { branch 'main' }
             }
             steps {
-                script {
-                    env.PIPELINE_IMAGE = buildImage()
-                }
+                buildImage()
             }
         }
 
@@ -181,8 +173,8 @@ pipeline {
             }
             steps {
                 script {
-                    String version   = env.APP_VERSION ?: readVersion()
-                    String imageName = pipelineConfig?.libraries?.docker?.image_name ?: pipelineConfig?.libraries?.kubernetes?.image_name
+                    String version   = env.APP_VERSION
+                    String imageName = pipelineConfig.libraries.docker.image_name
 
                     promoteVersion(target_environment: 'PRODUCTION')
 
@@ -214,7 +206,7 @@ pipeline {
             }
             steps {
                 script {
-                    String version = env.APP_VERSION ?: readVersion()
+                    String version = env.APP_VERSION
                     String targetFolder = (env.BRANCH_NAME == 'main') ? 'prod' : 'dev'
                     String targetEnv = (env.BRANCH_NAME == 'main') ? 'PRODUCTION' : 'DEV'
                     String featureBranch = "deploy/${version}-${targetEnv.toLowerCase()}-${env.BUILD_NUMBER}"
@@ -222,19 +214,12 @@ pipeline {
                     checkOutRemoteSCM(branch: 'main')
 
                     updateManifest(
-                        new_tag: version,
                         target_folder: targetFolder
                     )
 
-                    //validateManifest(
-                    //    target_folder: targetFolder
-                    //)
-
                     gitPush(
                         target_branch: 'main',
-                        new_branch: featureBranch,
-                        commit_message: "ci: deploy ${version} to ${targetEnv} [skip ci]",
-                        create_pr: true
+                        new_branch: featureBranch
                     )
                 }
             }

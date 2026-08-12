@@ -15,12 +15,8 @@ fields {
         // Registry
         registry_url     = String    // Docker registry URL. Default: 'https://index.docker.io/v1/'
 
-        // Compose
-        compose_file          = String    // Path to compose file. Default: 'docker-compose.yml'
-
         // Container Validation
         validate_wait_seconds = Integer   // Seconds to wait for container to stabilize. Default: 10
-        health_url            = String    // Optional health endpoint to curl inside container
     }
 }
 
@@ -29,11 +25,8 @@ steps {
     buildImage
     tag
     push
-    promote
     promoteDockerImage
     logout
     cleanup
     containerValidate
-    composeUp
-    composeDown
 }
