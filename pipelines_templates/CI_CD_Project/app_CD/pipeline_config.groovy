@@ -17,6 +17,7 @@ libraries {
         deployment       = "weather-app"
         wait_for_rollout = true
         ssh_creds        = "ansible_ssh_key"
+        inventory_file   = "inventory.ini"
         install_tools    = true
     }
 }

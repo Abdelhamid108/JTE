@@ -5,6 +5,8 @@ fields {
         manifests_git_creds = String    // Jenkins credential ID for manifests repo auth
         manifests_repo_url  = String    // Git URL of the Kubernetes manifests repository
         image_name          = String    // Full Docker image name (used by updateManifest)
+        inventory_file      = String    // Inventory file to fetch IPs from. Default: 'inventory.ini'
+
     }
     optional {
         kube_creds          = String    // Jenkins credential ID for kubeconfig (used by deploy)

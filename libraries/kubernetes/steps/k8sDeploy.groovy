@@ -8,7 +8,7 @@ void call(Map args = [:]) {
     String deployName    = config.deployment
     String namespace     = args.namespace ?: config.namespace ?: 'default'
     boolean waitForRollout = config.wait_for_rollout != null ? config.wait_for_rollout : true
-    String inventoryFile = config.inventory_file
+    String inventoryFile = config.inventory_file 
 
     String bastionIp = config.bastion_ip ?: sh(
         script: "grep -A1 '\\[bastion\\]' ${inventoryFile} | grep -v '\\[bastion\\]' | awk '{print \$2}' | cut -d'=' -f2 | tr -d '\\r\\n'",
