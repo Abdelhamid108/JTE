@@ -8,7 +8,6 @@ List call() {
     String releaseTag    = env.TAG_NAME
 
 
-
     List generatedTags = []
     echo "Tagging ${pipelineImage}..."
 

@@ -1,6 +1,3 @@
-// pipelines_templates/CI_CD_Project/ansible_config/Jenkinsfile
-// Single-branch (main) Ansible Configuration Management Pipeline
-// Consumes the inventory.ini inventory artifact archived by the terraform_infra pipeline
 
 pipeline {
     agent {

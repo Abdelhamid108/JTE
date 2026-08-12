@@ -4,7 +4,7 @@ template_sources {
     merge = true
 }
 
-pipeline_template = 'ansible_config/Jenkinsfile'
+pipeline_template = 'ansible_pipeline/Jenkinsfile'
 
 libraries {
     ansible {

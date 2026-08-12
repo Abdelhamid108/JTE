@@ -1,5 +1,4 @@
 // pipelines_templates/CI_CD_Project/terraform_infra/Jenkinsfile
-// Single-branch (main) Terraform Infrastructure Pipeline
 
 pipeline {
     agent {

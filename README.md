@@ -152,7 +152,7 @@ JTE/
         ├── terraform_infra/                      # Infrastructure IaC
         │   ├── Jenkinsfile
         │   └── pipeline_config.groovy
-        └── ansible_config/                       # Configuration management (consumes terraform_infra's inventory)
+        └── ansible_pipeline/                       # Configuration management (consumes terraform_infra's inventory)
             ├── Jenkinsfile
             └── pipeline_config.groovy
 ```
@@ -308,7 +308,6 @@ Application build and test steps for Node.js projects.
 ```groovy
 npm {
     app_dir       = '.'        // Directory containing package.json
-    skip_lint     = false      // Set true to skip linting
     install_tools = true       // Set true to install agent dependencies (aws-cli, kubectl, etc.)
 }
 ```
@@ -338,7 +337,6 @@ docker {
     registry_url          = 'https://index.docker.io/v1/'
     docker_file_name      = 'Dockerfile'
     docker_file_dir       = '.'
-    no_cache              = false
     validate_wait_seconds = 10       // Seconds to wait during container validation
     // health_url          = 'http://localhost:3000/health'  // Optional health endpoint
 }
@@ -460,7 +458,7 @@ ansible {
 }
 ```
 
-> **How the two pipelines connect**: `terraform_infra` provisions the EC2 hosts, writes `hosts.ini` from Terraform outputs (e.g. via a `local_file` resource), and archives it with `archiveInventory()`. The separate `ansible_config` pipeline then runs `fetchInventory()`, which uses the Jenkins **Copy Artifact** plugin to copy that exact `hosts.ini` from the terraform job's last successful build into its own workspace before running the playbook. This keeps the inventory Jenkins-managed and versioned per build, rather than regenerated or hand-copied between jobs.
+> **How the two pipelines connect**: `terraform_infra` provisions the EC2 hosts, writes `hosts.ini` from Terraform outputs (e.g. via a `local_file` resource), and archives it with `archiveInventory()`. The separate `ansible_pipeline` pipeline then runs `fetchInventory()`, which uses the Jenkins **Copy Artifact** plugin to copy that exact `hosts.ini` from the terraform job's last successful build into its own workspace before running the playbook. This keeps the inventory Jenkins-managed and versioned per build, rather than regenerated or hand-copied between jobs.
 
 ---
 
@@ -605,7 +603,7 @@ aws s3 cp version-registry.json s3://your-bucket/version-registry.json
 | [Docker Pipeline](https://plugins.jenkins.io/docker-workflow/) | Docker agent support |
 | [Pipeline Utility Steps](https://plugins.jenkins.io/pipeline-utility-steps/) | Optional (Native Groovy `JsonSlurperClassic` is now used for JSON handling) |
 | [AWS Credentials](https://plugins.jenkins.io/aws-credentials/) | AWS credential binding (`aws()`) |
-| [Copy Artifact](https://plugins.jenkins.io/copyartifact/) | Lets the `ansible_config` job pull `inventory.ini` from the `terraform_infra` job's build (`fetchInventory()`) |
+| [Copy Artifact](https://plugins.jenkins.io/copyartifact/) | Lets the `ansible_pipeline` job pull `inventory.ini` from the `terraform_infra` job's build (`fetchInventory()`) |
 | [SSH Agent](https://plugins.jenkins.io/ssh-agent/) | Provides `sshUserPrivateKey` credential binding used by `ansibleDeploy()` |
 
 ### Jenkins Credentials

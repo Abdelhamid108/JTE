@@ -1,5 +1,4 @@
 // pipelines_templates/CI_CD_Project/app_deployment/Jenkinsfile
-// Branch-aware CI/CD pipeline for GitOps-style deployments using Docker Agent
 //
 // Workflows:
 //   PR to dev       → Validate, Read Version, Version Gate, Install Dependencies, Build & Test, Docker Build, Container Validate, Register (PR_VALIDATED)
