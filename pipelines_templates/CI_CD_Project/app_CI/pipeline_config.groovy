@@ -36,6 +36,8 @@ libraries {
         image_name          = "abdelhameed208/atos-weather-app"
         kube_creds          = "kubeconfig-creds"
         deployment          = "your-app"
+        inventory_file   = ""
+
     }
 
     // ─── Version Registry (S3-backed JSON) ──────────
