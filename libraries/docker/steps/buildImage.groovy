@@ -12,7 +12,7 @@ String call() {
     echo "Building Docker Image: ${pipelineImage}"
 
     dir(buildDir) {
-        sh "docker build -f ${dockerFileName} -t ${pipelineImage} "
+        sh "docker build -f ${dockerFileName} -t ${pipelineImage} ."
     }
 
     env.PIPELINE_IMAGE = pipelineImage
