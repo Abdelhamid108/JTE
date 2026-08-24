@@ -1,0 +1,71 @@
+// JTE/terraform_ci/Jenkinsfile
+//
+// Infrastructure CI: init -> validate -> checkov -> plan -> approval ->
+// apply -> terratest.
+//
+// Destroy is intentionally NOT part of this normal flow. A destroy run
+// must be triggered as its own explicitly-parameterized build
+// (params.ACTION == 'destroy'); terraform/destroy.groovy itself refuses to
+// run otherwise, and this pipeline never calls destroy() at all.
+//
+// Jenkins job setup: point this job's Pipeline definition at
+// 'JTE/terraform_ci/Jenkinsfile'. Libraries are wired in the adjacent
+// pipeline_config.groovy.
+
+@Library('JTE') _
+
+stage('Checkout') {
+    checkoutCode()
+}
+
+stage('Change Detection') {
+    if (!terraformChanged()) {
+        echo "terraform_ci: no changes under terraform/** or JTE/** — skipping the rest of the infrastructure pipeline."
+        currentBuild.result = 'SUCCESS'
+        return
+    }
+}
+
+stage('Install Tools') {
+    if (config.install_tools == null || config.install_tools.toString().toBoolean()) {
+        installTools()
+    } else {
+        echo "terraform_ci: install_tools=false — assuming a prebuilt agent already has the required tools."
+    }
+}
+
+stage('Terraform Init') {
+    init()
+}
+
+stage('Terraform Validate') {
+    // terraform fmt failures are a warning only; terraform validate
+    // failures stop the pipeline — see terraform/validate.groovy.
+    validate()
+}
+
+stage('Checkov') {
+    // Blocking by default policy — see terraform/checkov.groovy.
+    checkov()
+}
+
+stage('Terraform Plan') {
+    plan()
+}
+
+stage('Manual Approval') {
+    approval()
+}
+
+stage('Terraform Apply') {
+    deploy()
+}
+
+stage('Terratest') {
+    // NOT YET IMPLEMENTED — this stage will fail loudly by design
+    // (see terraform/terratest.groovy). Remove/guard this stage only once
+    // that step has a real implementation.
+    terratest()
+}
+
+echo "terraform_ci: completed."

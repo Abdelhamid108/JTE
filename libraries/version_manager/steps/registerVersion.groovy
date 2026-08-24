@@ -1,15 +1,21 @@
-// version_manager/steps/registerVersion.groovy
+// steps/registerVersion.groovy
+//
+// AWS auth: relies on the agent's ambient IRSA identity for 'aws s3 cp'.
+// Concurrency: wrapped in a Jenkins 'lock' so two builds promoting at the
+// same time cannot read-modify-write the same registry object and clobber
+// each other's entry (requires the Lockable Resources plugin).
 
 void call(Map args = [:]) {
-    String version          = args.version          ?: env.APP_VERSION ?: readVersion()
-    String environment      = args.environment      ?: config.target_environment
-    String repository       = args.repository       ?: config.repository   ?: env.GIT_URL   ?: ''
-    String branch           = args.branch           ?: env.BRANCH_NAME     ?: ''
-    String buildNumber      = args.build_number     ?: env.BUILD_NUMBER    ?: ''
-    String registryPath     = config.registry_path
-    String awsCredentialsId = config.aws_credentials_id
+    String version      = args.version      ?: env.APP_VERSION ?: readVersion()
+    String environment  = args.environment  ?: config.target_environment
+    String repository    = args.repository   ?: config.repository ?: env.GIT_URL ?: ''
+    String branch         = args.branch       ?: env.BRANCH_NAME  ?: ''
+    String buildNumber    = args.build_number ?: env.BUILD_NUMBER ?: ''
+    String registryPath  = config.registry_path ?: 's3://my-bucket/version-registry.json'
 
-
+    if (!version || !environment) {
+        error "registerVersion: Both 'version' and 'environment' are required."
+    }
 
     String commitSha = env.GIT_COMMIT ?: sh(script: "git rev-parse HEAD 2>/dev/null || echo 'unknown'", returnStdout: true).trim()
     String timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
@@ -25,25 +31,16 @@ void call(Map args = [:]) {
         status       : 'PROMOTED'
     ]
 
-    String tempFile = ".version_registry_tmp.json"
-    String cpFrom = "aws s3 cp '${registryPath}' -"
-    String cpTo = "aws s3 cp '${tempFile}' '${registryPath}'"
-
-    def updateRegistry = {
-        String content = sh(script: cpFrom, returnStdout: true).trim()
+    lock('petclinic-version-registry') {
+        String content = sh(script: "aws s3 cp '${registryPath}' -", returnStdout: true).trim()
         def registry = readJSON text: content
-        registry.versions.add(record)
-        writeJSON file: tempFile, json: registry, pretty: 4
-        sh cpTo
-        sh "rm -f '${tempFile}'"
-    }
 
-    if (awsCredentialsId) {
-        withCredentials([aws(credentialsId: awsCredentialsId, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-            updateRegistry()
-        }
-    } else {
-        updateRegistry()
+        registry.versions.add(record)
+
+        String tempFile = ".version_registry_tmp.json"
+        writeJSON file: tempFile, json: registry, pretty: 4
+        sh "aws s3 cp '${tempFile}' '${registryPath}'"
+        sh "rm -f '${tempFile}'"
     }
 
     echo "registerVersion: '${version}' registered for '${environment}'."

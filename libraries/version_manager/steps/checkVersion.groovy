@@ -1,25 +1,31 @@
-// version_manager/steps/checkVersion.groovy
+// steps/checkVersion.groovy
+//
+// AWS auth: relies on the agent's ambient IRSA identity for 'aws s3 cp'.
+// A missing/unreadable registry is treated as a hard failure — it is
+// safer to stop the pipeline than to silently assume "no versions exist".
 
 Map call(Map args = [:]) {
-    String version          = args.version          ?: env.APP_VERSION ?: readVersion()
-    String environment      = args.environment      ?: config.target_environment
-    String registryPath     = config.registry_path
-    String awsCredentialsId = config.aws_credentials_id
+    String version      = args.version     ?: env.APP_VERSION ?: readVersion()
+    String environment  = args.environment ?: config.target_environment
+    String registryPath = config.registry_path ?: 's3://your-bucket-name/version-registry.json'
 
+    if (!version)     { error "checkVersion: 'version' is required." }
+    if (!environment) { error "checkVersion: 'environment' is required." }
 
-
-    String awsCommand = "aws s3 cp '${registryPath}' -"
-    String content = ""
-
-    if (awsCredentialsId) {
-        withCredentials([aws(credentialsId: awsCredentialsId, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-            content = sh(script: awsCommand, returnStdout: true).trim()
-        }
-    } else {
-        content = sh(script: awsCommand, returnStdout: true).trim()
+    String content
+    try {
+        content = sh(script: "aws s3 cp '${registryPath}' -", returnStdout: true).trim()
+    } catch (Exception e) {
+        error "checkVersion: could not read the version registry at '${registryPath}': ${e.message}"
     }
 
-    def registry = readJSON text: content
+    def registry
+    try {
+        registry = readJSON text: content
+    } catch (Exception e) {
+        error "checkVersion: version registry at '${registryPath}' is corrupted/unparseable: ${e.message}"
+    }
+
     def match = registry.versions.find { it.version == version && it.environment == environment }
 
     if (match) {

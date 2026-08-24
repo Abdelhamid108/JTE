@@ -1,0 +1,69 @@
+// JTE/app_ci/Jenkinsfile
+//
+// Application CI: builds, tests, scans, and publishes the PetClinic image,
+// then updates the 'dev' GitOps values. Argo CD owns everything after the
+// GitOps commit — this pipeline does not touch Kubernetes/Argo CD.
+//
+// Flow:
+//   Checkout -> Change Detection -> Read Version -> Maven Test -> Sonar
+//   -> Package -> Docker Build -> Trivy Image Scan -> ECR Push
+//   -> GitOps Dev Update
+//
+// Jenkins job setup: point this job's "Script Path" (multibranch) or
+// Pipeline definition at 'JTE/app_ci/Jenkinsfile'. Libraries are wired in
+// the adjacent pipeline_config.groovy — JTE loads it automatically from
+// the same directory as this file.
+
+@Library('JTE') _
+
+stage('Checkout') {
+    checkout scm
+}
+
+stage('Change Detection') {
+    if (!applicationChanged()) {
+        echo "app_ci: no changes under application/** or JTE/** — skipping the rest of the application pipeline."
+        currentBuild.result = 'SUCCESS'
+        return
+    }
+}
+
+stage('Read Version') {
+    readVersion()
+}
+
+stage('Maven Test') {
+    // Fails the build on any test failure (see maven/test.groovy).
+    test()
+}
+
+stage('Sonar') {
+    // Non-blocking by default policy — see sonar/library_config.groovy.
+    scan()
+}
+
+stage('Package') {
+    packageApp()
+}
+
+stage('Docker Build & ECR Login') {
+    login()
+    buildImage()
+}
+
+stage('Trivy Image Scan') {
+    // Blocking by default policy — a finding here stops the pipeline
+    // before the image is ever pushed to ECR.
+    scanImage()
+}
+
+stage('Push to ECR') {
+    pushImage()
+}
+
+stage('GitOps: Update dev') {
+    updateValues(environment: 'dev')
+    commitChanges(environment: 'dev')
+}
+
+echo "app_ci: completed. Argo CD will reconcile the 'dev' environment from the GitOps commit."
