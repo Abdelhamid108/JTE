@@ -8,6 +8,9 @@
 // been validated against your installed JTE plugin version — verify
 // against a live Jenkins instance before treating this as final.
 
+pipeline_template = 'app_ci/Jenkinsfile'
+
+
 libraries {
 
     change_detection {
