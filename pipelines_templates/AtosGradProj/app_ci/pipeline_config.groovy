@@ -31,9 +31,9 @@ libraries {
 
     sonar {
         sonar_project        = "petclinic"
-        sonar_organization   = "atos-gradproj"
-        sonar_credentials_id = "sonarcloud-token"
-        enforce_quality_gate = false   // non-blocking by policy
+        sonar_credentials_id = "sonarqube-token"
+        sonar_host_url       = "http://sonarqube:9000"
+        enforce_quality_gate = false
     }
 
     ecr {

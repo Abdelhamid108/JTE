@@ -19,26 +19,35 @@ void call(Map args = [:]) {
     boolean enforce     = config.enforce_quality_gate ? config.enforce_quality_gate.toString().toBoolean() : false
     int timeoutMinutes  = (config.quality_gate_timeout_minutes ?: '10') as Integer
 
-    if (!project) { error "sonar/scan: 'sonar_project' is required." }
+    if (!project) {
+        error "sonar/scan: 'sonar_project' is required."
+    }
 
-    String orgArg  = org     ? "-Dsonar.organization=${org}"  : ''
-    String hostArg = hostUrl ? "-Dsonar.host.url=${hostUrl}"  : ''
+    String orgArg  = org     ? "-Dsonar.organization=${org}" : ''
+    String hostArg = hostUrl ? "-Dsonar.host.url=${hostUrl}" : ''
 
     def runScan = {
         dir(appDir) {
-            sh "${mavenCommand} -B sonar:sonar -Dsonar.projectKey=${project} ${orgArg} ${hostArg}"
+            sh """
+                ${mavenCommand} -B sonar:sonar \
+                -Dsonar.projectKey=${project} \
+                ${orgArg} \
+                ${hostArg} \
+                -Dsonar.token=\$SONAR_TOKEN
+            """
         }
     }
 
     if (credsId) {
-        withCredentials([string(credentialsId: credsId, variable: 'SONAR_TOKEN')]) {
+        withCredentials([
+            string(credentialsId: credsId, variable: 'SONAR_TOKEN')
+        ]) {
             runScan()
         }
     } else {
-        echo "sonar/scan: WARNING — no sonar_credentials_id configured, relying on agent-level Sonar auth."
-        runScan()
+        error "sonar/scan: sonar_credentials_id is required."
     }
-
+    
     if (enforce) {
         echo "sonar/scan: enforce_quality_gate=true — waiting for the SonarCloud quality gate (timeout ${timeoutMinutes}m)."
         timeout(time: timeoutMinutes, unit: 'MINUTES') {
