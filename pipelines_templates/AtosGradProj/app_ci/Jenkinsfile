@@ -14,17 +14,8 @@
 // the adjacent pipeline_config.groovy — JTE loads it automatically from
 // the same directory as this file.
 
-pipeline {
-    agent {
-        docker {
-            image "python:3.12-alpine"
-            args '-u root:root --entrypoint='
-        }
-    }
-
-
-
-    stages {
+node {
+    docker.image('python:3.12-alpine').inside('-u root:root --entrypoint=') {
         stage('Checkout') {
             checkout scm
         }
