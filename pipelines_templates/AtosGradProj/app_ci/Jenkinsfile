@@ -14,8 +14,7 @@
 // the adjacent pipeline_config.groovy — JTE loads it automatically from
 // the same directory as this file.
 
-node {
-    docker.image('python:3.12-alpine').inside('-u root:root --entrypoint=') {
+node('petclinic-app-ci'){
         stage('Checkout') {
             checkout scm
         }
