@@ -66,5 +66,4 @@ node('petclinic-app-ci'){
         }
 
         echo "app_ci: completed. Argo CD will reconcile the 'dev' environment from the GitOps commit."
-    }
 }
