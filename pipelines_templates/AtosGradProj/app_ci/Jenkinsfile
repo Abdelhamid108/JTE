@@ -14,12 +14,7 @@
 // the adjacent pipeline_config.groovy — JTE loads it automatically from
 // the same directory as this file.
 
-pipeline{
-    agent{
-        any
-    }
-    stages{
-
+node('docker-agent'){
         stage('Checkout') {
             checkout scm
         }
@@ -71,5 +66,4 @@ pipeline{
         }
 
         echo "app_ci: completed. Argo CD will reconcile the 'dev' environment from the GitOps commit."
-    }
 }
