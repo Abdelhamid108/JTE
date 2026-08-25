@@ -14,7 +14,12 @@
 // the adjacent pipeline_config.groovy — JTE loads it automatically from
 // the same directory as this file.
 
-node('petclinic-app-ci'){
+pipeline{
+    agent{
+        any
+    }
+    stages{
+
         stage('Checkout') {
             checkout scm
         }
@@ -66,4 +71,5 @@ node('petclinic-app-ci'){
         }
 
         echo "app_ci: completed. Argo CD will reconcile the 'dev' environment from the GitOps commit."
+    }
 }
