@@ -36,6 +36,10 @@ node('docker-agent'){
             test()
         }
 
+        stage('Maven Verify') {
+            verify()
+        }
+
         stage('Sonar') {
             // Non-blocking by default policy — see sonar/library_config.groovy.
             scan()
