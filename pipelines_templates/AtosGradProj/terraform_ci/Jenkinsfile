@@ -12,60 +12,61 @@
 // 'JTE/terraform_ci/Jenkinsfile'. Libraries are wired in the adjacent
 // pipeline_config.groovy.
 
-@Library('JTE') _
+node('petclinic-app-ci'){
 
-stage('Checkout') {
-    checkoutCode()
-}
-
-stage('Change Detection') {
-    if (!terraformChanged()) {
-        echo "terraform_ci: no changes under terraform/** or JTE/** — skipping the rest of the infrastructure pipeline."
-        currentBuild.result = 'SUCCESS'
-        return
+    stage('Checkout') {
+        checkoutCode()
     }
-}
 
-stage('Install Tools') {
-    if (config.install_tools == null || config.install_tools.toString().toBoolean()) {
-        installTools()
-    } else {
-        echo "terraform_ci: install_tools=false — assuming a prebuilt agent already has the required tools."
+    stage('Change Detection') {
+        if (!terraformChanged()) {
+            echo "terraform_ci: no changes under terraform/** or JTE/** — skipping the rest of the infrastructure pipeline."
+            currentBuild.result = 'SUCCESS'
+            return
+        }
     }
-}
 
-stage('Terraform Init') {
-    init()
-}
+    stage('Install Tools') {
+        if (config.install_tools == null || config.install_tools.toString().toBoolean()) {
+            installTools()
+        } else {
+            echo "terraform_ci: install_tools=false — assuming a prebuilt agent already has the required tools."
+        }
+    }
 
-stage('Terraform Validate') {
-    // terraform fmt failures are a warning only; terraform validate
-    // failures stop the pipeline — see terraform/validate.groovy.
-    validate()
-}
+    stage('Terraform Init') {
+        init()
+    }
 
-stage('Checkov') {
-    // Blocking by default policy — see terraform/checkov.groovy.
-    checkov()
-}
+    stage('Terraform Validate') {
+        // terraform fmt failures are a warning only; terraform validate
+        // failures stop the pipeline — see terraform/validate.groovy.
+        validate()
+    }
 
-stage('Terraform Plan') {
-    plan()
-}
+    stage('Checkov') {
+        // Blocking by default policy — see terraform/checkov.groovy.
+        checkov()
+    }
 
-stage('Manual Approval') {
-    approval()
-}
+    stage('Terraform Plan') {
+        plan()
+    }
 
-stage('Terraform Apply') {
-    deploy()
-}
+    stage('Manual Approval') {
+        approval()
+    }
 
-stage('Terratest') {
-    // NOT YET IMPLEMENTED — this stage will fail loudly by design
-    // (see terraform/terratest.groovy). Remove/guard this stage only once
-    // that step has a real implementation.
-    terratest()
-}
+    stage('Terraform Apply') {
+        deploy()
+    }
 
-echo "terraform_ci: completed."
+    stage('Terratest') {
+        // NOT YET IMPLEMENTED — this stage will fail loudly by design
+        // (see terraform/terratest.groovy). Remove/guard this stage only once
+        // that step has a real implementation.
+        terratest()
+    }
+
+    echo "terraform_ci: completed."
+}
