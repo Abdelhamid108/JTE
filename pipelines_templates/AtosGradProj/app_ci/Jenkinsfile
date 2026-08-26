@@ -40,6 +40,16 @@ node('docker-agent'){
             verify()
         }
 
+        stage('Test Sonar Connectivity') {
+            sh '''
+                echo "Testing DNS..."
+                getent hosts sonarqube || true
+
+                echo "Testing HTTP..."
+                curl -v http://sonarqube:9000/api/system/status
+            '''
+        }
+
         stage('Sonar') {
             // Non-blocking by default policy — see sonar/library_config.groovy.
             scan()
@@ -72,6 +82,5 @@ node('docker-agent'){
             updateValues(environment: 'dev')
             commitChanges(environment: 'dev')
         }
-
         echo "app_ci: completed. Argo CD will reconcile the 'dev' environment from the GitOps commit."
 }
