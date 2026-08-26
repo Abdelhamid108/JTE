@@ -40,16 +40,6 @@ node('docker-agent'){
             verify()
         }
 
-        stage('Test Sonar Connectivity') {
-            sh '''
-                echo "Testing DNS..."
-                getent hosts sonarqube || true
-
-                echo "Testing HTTP..."
-                curl -v http://sonarqube:9000/api/system/status
-            '''
-        }
-
         stage('Sonar') {
             // Non-blocking by default policy — see sonar/library_config.groovy.
             scan()
@@ -60,14 +50,14 @@ node('docker-agent'){
         }
 
         assumeRole {
+            stage('ECR Login') {
+                login()
+            }
 
             stage('Docker Build') {
                 buildImage()
             }
 
-            stage('ECR Login') {
-                login()
-            }
 
             stage('Trivy Image Scan') {
                 scanImage()
