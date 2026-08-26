@@ -14,7 +14,8 @@
 // the adjacent pipeline_config.groovy — JTE loads it automatically from
 // the same directory as this file.
 
-node('docker-agent'){
+
+node('Built-In Node'){
         stage('Checkout') {
             checkout scm
         }
