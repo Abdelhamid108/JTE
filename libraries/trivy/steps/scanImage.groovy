@@ -13,7 +13,7 @@ void call(Map args = [:]) {
     String exitCode   = config.exit_code ?: '1'
     String format     = config.report_format ?: 'table'
     String ignoreFile = config.ignore_file ?: ''
-    String timeout    = config.timeout ?: '10m'
+    String timeout    = config.timeout ?: '20m'
 
     String ignoreFlag = ignoreFile ? "--ignorefile ${ignoreFile}" : ''
     String reportFile = "trivy-image-report.${format == 'table' ? 'txt' : format}"
