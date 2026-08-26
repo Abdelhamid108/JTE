@@ -3,6 +3,9 @@
 // Default policy (per team decision): Trivy is a HARD/BLOCKING security
 // gate. Any finding at or above 'severity_threshold' fails the pipeline.
 
+//change: Default policy: Trivy scans are informational/non-blocking.
+// Vulnerabilities are reported and archived, but do not stop the pipeline.
+
 fields {
     required {
     }

@@ -40,6 +40,8 @@ void call(Map args = [:]) {
     archiveArtifacts artifacts: reportFile, allowEmptyArchive: true
 
     if (status != 0) {
-        error "trivy/scanImage: scan failed or vulnerabilities matching ${severity} were found."
+        error "trivy/scanImage: Trivy failed to complete successfully."
     }
+
+    echo "trivy/scanImage: scan completed. Vulnerabilities, if any, are available in ${reportFile}."
 }

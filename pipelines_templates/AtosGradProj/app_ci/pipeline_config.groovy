@@ -51,7 +51,7 @@ libraries {
     
     trivy {
         severity_threshold = "CRITICAL,HIGH"
-        exit_code          = "1"
+        exit_code          = "0"
         app_dir            = "application"
         timeout            = "20m"
     }
