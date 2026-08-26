@@ -36,13 +36,18 @@ libraries {
         enforce_quality_gate = false
     }
 
-    ecr {
-        aws_region          = "us-east-1"
-        aws_credentials_id  = "aws-jenkins-ecr"
-        ecr_repository      = "petclinic"
-        dockerfile_path     = "application/Dockerfile"
-        build_context       = "application"
+    aws {
+        aws_credentials_id = "aws-jenkins-assumer"
+        aws_role_arn       = "arn:aws:iam::069089526123:role/JenkinsDeploymentRole"
+        aws_region         = "us-east-1"
     }
+
+    ecr {
+        aws_region         = "us-east-1"
+        ecr_repository     = "petclinic"
+        dockerfile_path    = "application/Dockerfile"
+        build_context      = "application"
+    }   
     
     trivy {
         severity_threshold = "CRITICAL,HIGH"

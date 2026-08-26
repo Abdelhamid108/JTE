@@ -45,41 +45,27 @@ node('docker-agent'){
             scan()
         }
 
-        stage('Test AWS Credentials') {
-            withCredentials([
-                usernamePassword(
-                    credentialsId: 'aws-jenkins-ecr',
-                    usernameVariable: 'AWS_ACCESS_KEY_ID',
-                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                )
-            ]) {
-                sh '''
-                    echo "AWS CLI:"
-                    aws --version
-
-                    echo "AWS identity:"
-                    aws sts get-caller-identity
-                '''
-            }
-        }
-
         stage('Package') {
             packageApp()
         }
 
-        stage('Docker Build & ECR Login') {
-            login()
-            buildImage()
-        }
+        assumeRole {
 
-        stage('Trivy Image Scan') {
-            // Blocking by default policy — a finding here stops the pipeline
-            // before the image is ever pushed to ECR.
-            scanImage()
-        }
+            stage('Docker Build') {
+                buildImage()
+            }
 
-        stage('Push to ECR') {
-            pushImage()
+            stage('ECR Login') {
+                login()
+            }
+
+            stage('Trivy Image Scan') {
+                scanImage()
+            }
+
+            stage('Push to ECR') {
+                pushImage()
+            }
         }
 
         stage('GitOps: Update dev') {
