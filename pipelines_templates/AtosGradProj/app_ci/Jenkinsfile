@@ -45,6 +45,24 @@ node('docker-agent'){
             scan()
         }
 
+        stage('Test AWS Credentials') {
+            withCredentials([
+                usernamePassword(
+                    credentialsId: 'aws-jenkins-ecr',
+                    usernameVariable: 'AWS_ACCESS_KEY_ID',
+                    passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                )
+            ]) {
+                sh '''
+                    echo "AWS CLI:"
+                    aws --version
+
+                    echo "AWS identity:"
+                    aws sts get-caller-identity
+                '''
+            }
+        }
+
         stage('Package') {
             packageApp()
         }

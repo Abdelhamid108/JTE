@@ -37,12 +37,13 @@ libraries {
     }
 
     ecr {
-        aws_region      = "us-east-1"
-        ecr_repository   = "petclinic"
-        dockerfile_path = "application/Dockerfile"
-        build_context    = "application"
+        aws_region          = "us-east-1"
+        aws_credentials_id  = "aws-jenkins-ecr"
+        ecr_repository      = "petclinic"
+        dockerfile_path     = "application/Dockerfile"
+        build_context       = "application"
     }
-
+    
     trivy {
         severity_threshold = "CRITICAL,HIGH"
         exit_code          = "1"       // blocking by policy

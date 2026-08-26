@@ -10,18 +10,46 @@
 // via IRSA, so the AWS CLI resolves temporary credentials automatically.
 
 void call(Map args = [:]) {
-    String region    = args.aws_region ?: config.aws_region
+
+    String region = args.aws_region ?: config.aws_region
     String accountId = args.aws_account_id ?: config.aws_account_id
+    String credentialsId = args.aws_credentials_id ?: config.aws_credentials_id
 
-    if (!region) { error "ecr/login: 'aws_region' is required." }
-
-    if (!accountId) {
-        accountId = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
+    if (!region) {
+        error "ecr/login: 'aws_region' is required."
     }
 
-    String registry = "${accountId}.dkr.ecr.${region}.amazonaws.com"
-    env.ECR_REGISTRY = registry
+    if (!credentialsId) {
+        error "ecr/login: 'aws_credentials_id' is required."
+    }
 
-    echo "ecr/login: authenticating docker against ${registry}"
-    sh "aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}"
+    withCredentials([
+        usernamePassword(
+            credentialsId: credentialsId,
+            usernameVariable: 'AWS_ACCESS_KEY_ID',
+            passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+        )
+    ]) {
+
+        if (!accountId) {
+            accountId = sh(
+                script: "aws sts get-caller-identity --query Account --output text",
+                returnStdout: true
+            ).trim()
+        }
+
+        String registry =
+            "${accountId}.dkr.ecr.${region}.amazonaws.com"
+
+        env.ECR_REGISTRY = registry
+
+        echo "ecr/login: authenticating Docker against ${registry}"
+
+        sh """
+            aws ecr get-login-password --region ${region} |
+            docker login \
+              --username AWS \
+              --password-stdin ${registry}
+        """
+    }
 }
