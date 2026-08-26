@@ -13,6 +13,8 @@ void call(Map args = [:]) {
     String exitCode   = config.exit_code ?: '1'
     String format     = config.report_format ?: 'table'
     String ignoreFile = config.ignore_file ?: ''
+    String timeout    = config.timeout ?: '10m'
+
     String ignoreFlag = ignoreFile ? "--ignorefile ${ignoreFile}" : ''
     String reportFile = "trivy-image-report.${format == 'table' ? 'txt' : format}"
 
@@ -20,8 +22,24 @@ void call(Map args = [:]) {
         error "trivy/scanImage: no image reference found. Run ecr/buildImage first, or pass image_uri."
     }
 
-    echo "trivy/scanImage: scanning ${image} (severity>=${severity}, blocking)"
-    sh "trivy image --severity ${severity} --exit-code ${exitCode} --format ${format} ${ignoreFlag} -o ${reportFile} ${image}"
+    echo "trivy/scanImage: scanning ${image} (severity>=${severity}, blocking, timeout=${timeout})"
+    int status = sh(
+        script: """
+            trivy image \
+            --timeout ${timeout} \
+            --severity ${severity} \
+            --exit-code ${exitCode} \
+            --format ${format} \
+            ${ignoreFlag} \
+            -o ${reportFile} \
+            ${image}
+        """,
+        returnStatus: true
+    )
 
     archiveArtifacts artifacts: reportFile, allowEmptyArchive: true
+
+    if (status != 0) {
+        error "trivy/scanImage: scan failed or vulnerabilities matching ${severity} were found."
+    }
 }

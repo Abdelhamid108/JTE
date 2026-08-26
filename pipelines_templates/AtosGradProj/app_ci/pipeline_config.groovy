@@ -51,8 +51,9 @@ libraries {
     
     trivy {
         severity_threshold = "CRITICAL,HIGH"
-        exit_code          = "1"       // blocking by policy
-        app_dir             = "application"
+        exit_code          = "1"
+        app_dir            = "application"
+        timeout            = "10m"
     }
 
     gitops {
