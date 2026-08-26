@@ -13,43 +13,29 @@ void call(Map args = [:]) {
 
     String region = args.aws_region ?: config.aws_region
     String accountId = args.aws_account_id ?: config.aws_account_id
-    String credentialsId = args.aws_credentials_id ?: config.aws_credentials_id
 
     if (!region) {
         error "ecr/login: 'aws_region' is required."
     }
 
-    if (!credentialsId) {
-        error "ecr/login: 'aws_credentials_id' is required."
+    if (!accountId) {
+        accountId = sh(
+            script: "aws sts get-caller-identity --query Account --output text",
+            returnStdout: true
+        ).trim()
     }
 
-    withCredentials([
-        usernamePassword(
-            credentialsId: credentialsId,
-            usernameVariable: 'AWS_ACCESS_KEY_ID',
-            passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-        )
-    ]) {
+    String registry =
+        "${accountId}.dkr.ecr.${region}.amazonaws.com"
 
-        if (!accountId) {
-            accountId = sh(
-                script: "aws sts get-caller-identity --query Account --output text",
-                returnStdout: true
-            ).trim()
-        }
+    env.ECR_REGISTRY = registry
 
-        String registry =
-            "${accountId}.dkr.ecr.${region}.amazonaws.com"
+    echo "ecr/login: authenticating Docker against ${registry}"
 
-        env.ECR_REGISTRY = registry
-
-        echo "ecr/login: authenticating Docker against ${registry}"
-
-        sh """
-            aws ecr get-login-password --region ${region} |
-            docker login \
-              --username AWS \
-              --password-stdin ${registry}
-        """
-    }
+    sh """
+        aws ecr get-login-password --region ${region} |
+        docker login \
+          --username AWS \
+          --password-stdin ${registry}
+    """
 }
