@@ -12,6 +12,7 @@ fields {
         ignore_file          = String   // Optional path to a .trivyignore file
         report_format        = String   // Default: 'table' (also supports 'json', 'sarif')
         app_dir               = String   // Default: 'application' — used by scanFilesystem
+        timeout               = String   // Default: '20m' — Trivy scan timeout
     }
 }
 

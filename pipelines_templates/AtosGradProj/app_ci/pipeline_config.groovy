@@ -53,7 +53,7 @@ libraries {
         severity_threshold = "CRITICAL,HIGH"
         exit_code          = "1"
         app_dir            = "application"
-        timeout            = "10m"
+        timeout            = "20m"
     }
 
     gitops {
