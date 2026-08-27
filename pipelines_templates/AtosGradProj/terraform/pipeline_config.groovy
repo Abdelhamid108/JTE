@@ -14,7 +14,7 @@ libraries {
     version_manager {
         app_dir            = "."
         version_file       = "INFRA_VERSION"
-        registry_path      = "s3://petclinic-platform-version-registry/version-registry.json"
+        registry_path      = "s3://petclinic-platform-version-registry-069089526123-us-east-1-an/version-registry.json"
         lock_resource_name = "atos-version-registry"
     }
 }
