@@ -1,18 +1,46 @@
-// steps/installTools.groovy — Install Terraform pipeline agent dependencies.
-//
-// Per team decision, tool installation stays dynamic (not baked into a
-// prebuilt agent image) for tools that are not already guaranteed to be on
-// the agent. Terraform and the AWS CLI are assumed to be present on the
-// agent already; this step is responsible for Checkov and its Python
-// prerequisites, which are the tools most likely to drift/be missing.
+// steps/installTools.groovy — Automatically installs Terraform and Checkov on the agent.
 
 void call(Map args = [:]) {
-    echo "Installing Checkov and agent dependencies inside container..."
-    sh '''
-        if command -v apk >/dev/null 2>&1; then
-            apk update && apk add --no-cache python3 py3-pip git && pip3 install checkov --break-system-packages
-        else
-            apt-get update && apt-get install -y python3 python3-pip git && pip3 install checkov --break-system-packages || true
+    String tfVersion = args.terraform_version ?: config.terraform_version ?: '1.10.5'
+
+    echo "Checking agent dependencies (Terraform & Checkov)..."
+
+    sh """
+        # 1. Install Terraform if not present
+        if ! command -v terraform >/dev/null 2>&1; then
+            echo "installTools: Terraform not found in PATH. Installing Terraform v${tfVersion}..."
+            
+            TARGET_DIR="/usr/local/bin"
+            if [ ! -w "\$TARGET_DIR" ]; then
+                TARGET_DIR="\${HOME}/.local/bin"
+                mkdir -p "\$TARGET_DIR"
+            fi
+
+            curl -fsSL "https://releases.hashicorp.com/terraform/${tfVersion}/terraform_${tfVersion}_linux_amd64.zip" -o /tmp/terraform.zip
+            
+            if command -v unzip >/dev/null 2>&1; then
+                unzip -q -o /tmp/terraform.zip -d "\$TARGET_DIR"
+            else
+                python3 -c "import zipfile; zipfile.ZipFile('/tmp/terraform.zip').extractall('\$TARGET_DIR')"
+            fi
+            
+            chmod +x "\$TARGET_DIR/terraform"
+            rm -f /tmp/terraform.zip
+            echo "installTools: Terraform installed to \$TARGET_DIR/terraform"
         fi
-    '''
+
+        # 2. Install Checkov if not present
+        if ! command -v checkov >/dev/null 2>&1; then
+            echo "installTools: Checkov not found in PATH. Installing Checkov..."
+            pip3 install --break-system-packages checkov 2>/dev/null || pip3 install --user checkov 2>/dev/null || pip install --user checkov 2>/dev/null || true
+        fi
+
+        # 3. Verify tools
+        if command -v terraform >/dev/null 2>&1; then
+            terraform -version
+        else
+            export PATH="\${HOME}/.local/bin:\$PATH"
+            terraform -version || echo "Warning: Please ensure ~/.local/bin is in PATH"
+        fi
+    """
 }
