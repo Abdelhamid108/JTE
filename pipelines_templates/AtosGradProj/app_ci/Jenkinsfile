@@ -1,10 +1,6 @@
 // pipelines_templates/AtosGradProj/app_ci/Jenkinsfile
 //
-// Application CI Pipeline (Declarative Syntax)
-// Flow:
-//   Checkout -> Change Detection -> Read Version -> Maven Verify & Test
-//   -> SonarQube -> Package -> ECR Login -> Docker Build -> Trivy Scan
-//   -> ECR Push -> GitOps Dev Update
+// Optimized Declarative Application CI Pipeline for Atos Graduation Project
 
 pipeline {
     agent {
@@ -13,57 +9,44 @@ pipeline {
 
     stages {
 
-        // ───────────────────────────────────────────
-        // STAGE 1: Checkout Source Code
-        // ───────────────────────────────────────────
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 2: Change Detection
-        // ───────────────────────────────────────────
         stage('Change Detection') {
             steps {
                 script {
                     if (!applicationChanged()) {
-                        echo "app_ci: no changes under application/** or JTE/** — skipping the rest of the application pipeline."
+                        echo "app_ci: no changes under application/** or JTE/** — skipping."
                         currentBuild.result = 'SUCCESS'
                     }
                 }
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 3: Read Application Version
-        // ───────────────────────────────────────────
-        stage('Read Version') {
+        stage('Read & Gate Version') {
             when {
                 expression { return currentBuild.result != 'SUCCESS' }
             }
             steps {
                 readVersion()
+                versionGate(environment: 'dev')
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 4: Maven Test & Verify (Unit + Integration Tests)
-        // ───────────────────────────────────────────
-        stage('Maven Test & Verify') {
+        stage('Build, Test & Package') {
             when {
                 expression { return currentBuild.result != 'SUCCESS' }
             }
             steps {
+                // Runs './mvnw clean verify' (Unit tests, JaCoCo coverage, and JAR package)
                 verify()
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 5: SonarQube Code Quality Scan
-        // ───────────────────────────────────────────
-        stage('SonarQube Scan') {
+        stage('SonarQube Quality Scan') {
             when {
                 expression { return currentBuild.result != 'SUCCESS' }
             }
@@ -72,33 +55,15 @@ pipeline {
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 6: Package Application JAR
-        // ───────────────────────────────────────────
-        stage('Package Application') {
+        stage('Trivy Dependency Scan') {
             when {
                 expression { return currentBuild.result != 'SUCCESS' }
             }
             steps {
-                packageApp()
+                scanFilesystem()
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 7: ECR Login
-        // ───────────────────────────────────────────
-        stage('ECR Login') {
-            when {
-                expression { return currentBuild.result != 'SUCCESS' }
-            }
-            steps {
-                login()
-            }
-        }
-
-        // ───────────────────────────────────────────
-        // STAGE 8: Docker Image Build
-        // ───────────────────────────────────────────
         stage('Docker Build') {
             when {
                 expression { return currentBuild.result != 'SUCCESS' }
@@ -108,9 +73,15 @@ pipeline {
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 9: Trivy Vulnerability Scan
-        // ───────────────────────────────────────────
+        stage('Container Health Validation') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                containerValidate()
+            }
+        }
+
         stage('Trivy Image Scan') {
             when {
                 expression { return currentBuild.result != 'SUCCESS' }
@@ -120,24 +91,27 @@ pipeline {
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 10: Push Image to AWS ECR
-        // ───────────────────────────────────────────
-        stage('Push to ECR') {
+        stage('ECR Login & Push') {
             when {
-                expression { return currentBuild.result != 'SUCCESS' }
+                allOf {
+                    expression { return currentBuild.result != 'SUCCESS' }
+                    branch 'main'
+                    not { changeRequest() }
+                }
             }
             steps {
+                login()
                 pushImage()
             }
         }
 
-        // ───────────────────────────────────────────
-        // STAGE 11: GitOps Dev Environment Update
-        // ───────────────────────────────────────────
-        stage('GitOps: Update dev') {
+        stage('GitOps: Deploy to Dev') {
             when {
-                expression { return currentBuild.result != 'SUCCESS' }
+                allOf {
+                    expression { return currentBuild.result != 'SUCCESS' }
+                    branch 'main'
+                    not { changeRequest() }
+                }
             }
             steps {
                 script {
@@ -150,13 +124,16 @@ pipeline {
 
     post {
         always {
+            script {
+                try { cleanup() } catch (e) { echo "Docker cleanup skipped: ${e.message}" }
+            }
             cleanWs()
         }
         success {
-            echo "app_ci: Completed successfully for version ${env.APP_VERSION ?: 'N/A'}. Argo CD will reconcile 'dev'."
+            echo "app_ci: Pipeline SUCCEEDED for version ${env.APP_VERSION ?: 'N/A'}. Argo CD will reconcile 'dev'."
         }
         failure {
-            echo "app_ci: FAILED for version ${env.APP_VERSION ?: 'N/A'}."
+            echo "app_ci: Pipeline FAILED for version ${env.APP_VERSION ?: 'N/A'}."
         }
     }
 }

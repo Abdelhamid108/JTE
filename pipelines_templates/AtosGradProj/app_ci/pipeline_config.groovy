@@ -11,8 +11,10 @@ libraries {
     }
 
     version_manager {
-        app_dir       = "application"
-        version_file  = "VERSION"
+        app_dir            = "application"
+        version_file       = "VERSION"
+        registry_path      = "s3://petclinic-platform-version-registry/version-registry.json"
+        strict_promotion   = true
     }
 
     maven {
@@ -45,6 +47,13 @@ libraries {
         exit_code          = "0"
         app_dir            = "application"
         timeout            = "20m"
+    }
+
+    docker {
+        install_tools      = false
+        container_port     = 8080
+        host_port          = 8080
+        health_check_url   = "http://localhost:8080/actuator/health"
     }
 
     gitops {
