@@ -6,42 +6,43 @@
 // each other's entry (requires the Lockable Resources plugin).
 
 void call(Map args = [:]) {
-    String version      = args.version      ?: env.APP_VERSION ?: readVersion()
-    String environment  = args.environment  ?: config.target_environment
-    String repository    = args.repository   ?: config.repository ?: env.GIT_URL ?: ''
-    String branch         = args.branch       ?: env.BRANCH_NAME  ?: ''
-    String buildNumber    = args.build_number ?: env.BUILD_NUMBER ?: ''
-    String registryPath  = config.registry_path ?: 's3://my-bucket/version-registry.json'
+    String version      = args.version ?: env.APP_VERSION ?: readVersion()
+    String environment  = args.environment ?: config.target_environment 
+    String type         = args.type ?: config.artifact_type 
+    String component    = args.component ?: config.component_name ?: env.JOB_BASE_NAME 
+    String registryPath = args.registry_path ?: config.registry_path
 
-    if (!version || !environment) {
-        error "registerVersion: Both 'version' and 'environment' are required."
-    }
+    if (!registryPath) error "registerVersion: 'registry_path' must be configured."
 
     String commitSha = env.GIT_COMMIT ?: sh(script: "git rev-parse HEAD 2>/dev/null || echo 'unknown'", returnStdout: true).trim()
-    String timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
-
     Map record = [
-        version      : version,
-        repository   : repository,
-        branch       : branch,
-        commit_sha   : commitSha,
-        build_number : buildNumber,
-        timestamp    : timestamp,
-        environment  : environment,
-        status       : 'PROMOTED'
+        type: type, component: component, version: version, commit_sha: commitSha,
+        timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC')),
+        environment: environment, status: 'ACTIVE'
     ]
 
-    lock('petclinic-version-registry') {
-        String content = sh(script: "aws s3 cp '${registryPath}' -", returnStdout: true).trim()
-        def registry = readJSON text: content
+    echo "version_manager: registering ${type} [${component}: ${version}] for '${environment}'..."
 
-        registry.versions.add(record)
+    lock(config.lock_resource_name ?: 'jte-version-registry') {
+        
+        String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
+        Map registry = [:]
+        try { registry = readJSON(text: content) } catch (Exception e) {}
 
-        String tempFile = ".version_registry_tmp.json"
-        writeJSON file: tempFile, json: registry, pretty: 4
-        sh "aws s3 cp '${tempFile}' '${registryPath}'"
-        sh "rm -f '${tempFile}'"
+        registry.environments = registry.environments ?: [:]
+        def envNode = registry.environments[environment] = registry.environments[environment] ?: [:]
+        registry.history = registry.history ?: []
+
+        if (type == 'INFRASTRUCTURE') {
+            envNode.infrastructure = record
+        } else {
+            envNode.workloads = envNode.workloads ?: [:]
+            envNode.workloads[component] = record
+        }
+
+        registry.history << record 
+
+        writeJSON file: 'registry_tmp.json', json: registry, pretty: 4
+        sh "aws s3 cp registry_tmp.json '${registryPath}' && rm -f registry_tmp.json"
     }
-
-    echo "registerVersion: '${version}' registered for '${environment}'."
 }

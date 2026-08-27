@@ -9,7 +9,7 @@
 // (ecr, gitops, release) — nothing else re-parses the VERSION file.
 
 String call(Map args = [:]) {
-    String appDir      = args.app_dir      ?: config.app_dir      ?: 'application'
+    String appDir      = args.app_dir      ?: config.app_dir      ?: '.'
     String versionFile = args.version_file ?: config.version_file ?: 'VERSION'
 
     String targetFile = (appDir != '.') ? "${appDir}/${versionFile}" : versionFile
@@ -19,14 +19,7 @@ String call(Map args = [:]) {
     }
 
     String content = readFile(file: targetFile).trim()
-    String version = ''
-
-    if (versionFile.endsWith('.json')) {
-        def json = readJSON text: content
-        version = json.version
-    } else {
-        version = content
-    }
+    String version = versionFile.endsWith('.json') ? (readJSON(text: content).version) : content
 
     if (!version?.trim()) {
         error "readVersion: No version found in '${targetFile}'."

@@ -1,20 +1,22 @@
-// pipelines_templates/AtosGradProj/terraform_ci/Jenkinsfile
+// pipelines_templates/AtosGradProj/terraform/Jenkinsfile
 //
-// Infrastructure CI Pipeline (Declarative Syntax)
-// Flow:
-//   Checkout -> Change Detection -> Install Tools -> Init -> Validate
-//   -> Security Scan (Checkov) -> Plan -> Manual Approval -> Deploy / Destroy
+// Hardened Declarative Infrastructure CI/CD Pipeline
+// Supports: PR Speculative Plan, Main Deployment, S3 Lineage Tracking, and Safe Destroy
 
 pipeline {
-    agent {
-        label 'master'
+    agent none
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
     }
 
     parameters {
         choice(
             name: 'ACTION',
             choices: ['apply', 'destroy'],
-            description: 'Action to perform on infrastructure'
+            description: 'Infrastructure lifecycle action to perform'
         )
     }
 
@@ -24,37 +26,27 @@ pipeline {
         // STAGE 1: Checkout Infrastructure Code
         // ───────────────────────────────────────────
         stage('Checkout Code') {
+            agent { label 'master' }
             steps {
                 checkoutCode()
-            }
-        }
-
-        // ───────────────────────────────────────────
-        // STAGE 2: Change Detection (Apply runs only)
-        // ───────────────────────────────────────────
-        stage('Change Detection') {
-            when {
-                expression { return params.ACTION != 'destroy' }
-            }
-            steps {
                 script {
-                    if (!terraformChanged()) {
-                        echo "terraform_ci: no changes under terraform/** or JTE/** — skipping the rest of the infrastructure pipeline."
-                        currentBuild.result = 'SUCCESS'
-                    }
+                    readVersion()
+                    echo "════════════════════════════════════════════════════"
+                    echo "  Infrastructure Version: ${env.APP_VERSION}"
+                    echo "  Action:                 ${params.ACTION}"
+                    echo "  Branch / Event:         ${env.BRANCH_NAME}"
+                    echo "════════════════════════════════════════════════════"
                 }
             }
         }
 
         // ───────────────────────────────────────────
-        // STAGE 3: Install Agent Tools
+        // STAGE 2: Install Agent Tools
         // ───────────────────────────────────────────
         stage('Install Tools') {
+            agent { label 'master' }
             when {
-                allOf {
-                    expression { return currentBuild.result != 'SUCCESS' }
-                    expression { return pipelineConfig.libraries?.terraform?.install_tools == true }
-                }
+                expression { return pipelineConfig.libraries?.terraform?.install_tools == true }
             }
             steps {
                 installTools()
@@ -62,59 +54,55 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 4: Terraform Init
+        // STAGE 3: Terraform Init
         // ───────────────────────────────────────────
         stage('Terraform Init') {
-            when {
-                expression { return currentBuild.result != 'SUCCESS' }
-            }
+            agent { label 'master' }
             steps {
                 init()
             }
         }
 
         // ───────────────────────────────────────────
-        // STAGE 5: Terraform Validate & Syntax Check
+        // STAGE 4: Terraform Validate & Syntax Check
         // ───────────────────────────────────────────
         stage('Terraform Validate') {
-            when {
-                expression { return currentBuild.result != 'SUCCESS' }
-            }
+            agent { label 'master' }
             steps {
                 validate()
             }
         }
 
         // ───────────────────────────────────────────
-        // STAGE 6: Security Scan (Checkov)
+        // STAGE 5: Security Scan (Checkov)
         // ───────────────────────────────────────────
         stage('Security Scan (Checkov)') {
-            when {
-                expression { return currentBuild.result != 'SUCCESS' }
-            }
+            agent { label 'master' }
             steps {
                 checkov()
             }
         }
 
         // ───────────────────────────────────────────
-        // STAGE 7: Terraform Plan
+        // STAGE 6: Terraform Plan
         // ───────────────────────────────────────────
         stage('Terraform Plan') {
-            when {
-                expression { return currentBuild.result != 'SUCCESS' }
-            }
+            agent { label 'master' }
             steps {
                 plan()
             }
         }
 
         // ───────────────────────────────────────────
-        // STAGE 8: Approval Guardrail
+        // STAGE 7: Approval Guardrail (Releases executor)
         // ───────────────────────────────────────────
         stage('Approval Guardrail') {
             when {
-                expression { return currentBuild.result != 'SUCCESS' }
+                branch 'main'
+                not { changeRequest() }
+            }
+            options {
+                timeout(time: 24, unit: 'HOURS')
             }
             steps {
                 approval(is_destroy: params.ACTION == 'destroy')
@@ -122,11 +110,13 @@ pipeline {
         }
 
         // ───────────────────────────────────────────
-        // STAGE 9: Execute Deploy / Destroy
+        // STAGE 8: Execute Deploy / Destroy
         // ───────────────────────────────────────────
         stage('Execute Deploy / Destroy') {
+            agent { label 'master' }
             when {
-                expression { return currentBuild.result != 'SUCCESS' }
+                branch 'main'
+                not { changeRequest() }
             }
             steps {
                 script {
@@ -138,14 +128,40 @@ pipeline {
                 }
             }
         }
+
+        // ───────────────────────────────────────────
+        // STAGE 9: Register Infrastructure Lineage in S3
+        // ───────────────────────────────────────────
+        stage('Register Infrastructure Lineage') {
+            agent { label 'master' }
+            when {
+                allOf {
+                    branch 'main'
+                    expression { return params.ACTION == 'apply' }
+                    not { changeRequest() }
+                }
+            }
+            steps {
+                script {
+                    registerVersion(
+                        type: 'INFRASTRUCTURE',
+                        component: 'eks-cluster',
+                        version: env.APP_VERSION,
+                        environment: 'prod'
+                    )
+                }
+            }
+        }
     }
 
     post {
         always {
-            cleanWs()
+            node('master') {
+                cleanWs()
+            }
         }
         success {
-            echo "terraform_ci: Action '${params.ACTION}' completed successfully."
+            echo "terraform_ci: Action '${params.ACTION}' completed successfully for Infra '${env.APP_VERSION ?: 'N/A'}' on branch '${env.BRANCH_NAME}'."
         }
         failure {
             echo "terraform_ci: Action '${params.ACTION}' FAILED."
