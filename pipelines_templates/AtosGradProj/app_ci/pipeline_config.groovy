@@ -1,22 +1,13 @@
 // JTE/app_ci/pipeline_config.groovy — library wiring for the app_ci pipeline.
-//
-// Scoped to only the libraries this pipeline actually calls. No secrets
-// live in this file — *_creds / *_credentials_id values are Jenkins
-// credential IDs (references), never literal secrets.
-//
-// CAVEAT: block syntax follows documented JTE conventions but has not
-// been validated against your installed JTE plugin version — verify
-// against a live Jenkins instance before treating this as final.
 
 pipeline_template = 'app_ci/Jenkinsfile'
-
 
 libraries {
 
     change_detection {
         application_paths = ["application/**"]
-        jte_paths            = ["JTE/**"]
-        base_branch          = "main"
+        jte_paths         = ["JTE/**"]
+        base_branch       = "main"
     }
 
     version_manager {
@@ -59,8 +50,8 @@ libraries {
     gitops {
         git_creds            = "gitops-repo-push-token"
         gitops_branch        = "main"
-        values_path_template = 'gitops/${env}/values.yaml'
-        git_user_name         = "jenkins-jte"
-        git_user_email        = "jenkins-jte@petclinic-platform.local"
+        values_path_template = 'gitops/workloads/${env}/values.yaml'
+        git_user_name        = "jenkins-jte"
+        git_user_email       = "jenkins-jte@petclinic-platform.local"
     }
 }

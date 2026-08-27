@@ -1,88 +1,146 @@
-// JTE/promotion/Jenkinsfile
+// pipelines_templates/AtosGradProj/promotion/Jenkinsfile
 //
-// Promotes an already-built, already-scanned, already-pushed image from
-// one environment to the next. NEVER rebuilds the application, the Docker
-// image, or re-runs Maven/Sonar/Trivy — it only reassigns an existing
-// immutable ECR tag to a new environment via a GitOps promotion PR.
-//
-// Allowed transitions: dev -> test, test -> prod. No other environment
-// jump is permitted.
-//
+// Promotion Pipeline (Declarative Syntax)
 // Flow:
-//   Checkout -> Determine source/target -> Read & Validate Version
-//   -> Version Gate -> Verify Image Exists in ECR -> Update GitOps
-//   -> Create Promotion PR -> Human confirms merge -> Register Promotion
-//
-// NOTE ON SCOPE: Jenkins has no first-class visibility into whether/when
-// a GitHub PR is merged. Rather than silently registering the promotion
-// at PR-creation time (before it has actually been reviewed), this
-// pipeline pauses on an explicit 'input' step and asks a human to confirm
-// the PR was reviewed and merged before the version registry is updated.
-//
-// Jenkins job setup: parameterized job (String parameter TARGET_ENVIRONMENT,
-// one of 'test'|'prod'), Pipeline definition pointed at
-// 'JTE/promotion/Jenkinsfile'.
+//   Checkout -> Determine Source/Target & Version -> Validate Version
+//   -> Version Gate -> Verify Image Exists in ECR -> Update GitOps & Open PR
+//   -> Human Review & Merge Approval -> Register Promotion in Registry
 
-
-
-
-Map allowedTransitions = ['test': 'dev', 'prod': 'test']
-node('petclinic-app-ci'){
-    stage('Checkout') {
-        checkout scm
+pipeline {
+    agent {
+        label 'master'
     }
 
-    stage('Determine Source/Target') {
-        String targetEnv = params.TARGET_ENVIRONMENT
-        if (!targetEnv || !allowedTransitions.containsKey(targetEnv)) {
-            error "promotion: params.TARGET_ENVIRONMENT must be one of ${allowedTransitions.keySet()} (dev is a source only, never a promotion target)."
-        }
-        env.TARGET_ENVIRONMENT = targetEnv
-        env.SOURCE_ENVIRONMENT = allowedTransitions[targetEnv]
-        echo "promotion: ${env.SOURCE_ENVIRONMENT} -> ${env.TARGET_ENVIRONMENT}"
-    }
-
-    stage('Read & Validate Version') {
-        readVersion()
-        validateVersion()
-    }
-
-    stage('Version Gate') {
-        // Refuses to proceed if this version is already promoted to the
-        // target environment — see version_manager/versionGate.groovy.
-        versionGate(environment: env.TARGET_ENVIRONMENT)
-    }
-
-    stage('Verify Image Exists in ECR') {
-        String repo = config.ecr_repository
-        if (!repo) { error "promotion: 'ecr_repository' must be configured to verify the image exists before promoting." }
-
-        int found = sh(
-            script: "aws ecr describe-images --repository-name ${repo} --image-ids imageTag=${env.APP_VERSION}",
-            returnStatus: true
+    parameters {
+        choice(
+            name: 'TARGET_ENVIRONMENT',
+            choices: ['test', 'prod'],
+            description: 'Target environment for promotion (dev -> test, test -> prod)'
         )
-        if (found != 0) {
-            error "promotion: image tag '${env.APP_VERSION}' was not found in ECR repository '${repo}'. Promotion requires an already-published image."
-        }
-        echo "promotion: confirmed '${env.APP_VERSION}' exists in ECR."
-    }
-
-    stage('GitOps: Update Target & Open PR') {
-        updateValues(environment: env.TARGET_ENVIRONMENT)
-        createPromotionPR(
-            version: env.APP_VERSION,
-            source_environment: env.SOURCE_ENVIRONMENT,
-            target_environment: env.TARGET_ENVIRONMENT
+        string(
+            name: 'VERSION_OVERRIDE',
+            defaultValue: '',
+            description: 'Optional: Version tag to promote (leave empty to use VERSION file)'
         )
     }
 
-    stage('Await PR Review & Merge') {
-        input message: "Promotion PR for ${env.APP_VERSION} (${env.SOURCE_ENVIRONMENT} -> ${env.TARGET_ENVIRONMENT}) opened. Confirm it has been reviewed and merged.", ok: 'Confirm merged'
+    stages {
+
+        // ───────────────────────────────────────────
+        // STAGE 1: Checkout Source Code
+        // ───────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 2: Determine Source/Target & Version
+        // ───────────────────────────────────────────
+        stage('Determine Environments & Version') {
+            steps {
+                script {
+                    Map allowedTransitions = ['test': 'dev', 'prod': 'test']
+                    String targetEnv = params.TARGET_ENVIRONMENT
+
+                    if (!targetEnv || !allowedTransitions.containsKey(targetEnv)) {
+                        error "promotion: TARGET_ENVIRONMENT must be one of ${allowedTransitions.keySet()}."
+                    }
+
+                    env.TARGET_ENVIRONMENT = targetEnv
+                    env.SOURCE_ENVIRONMENT = allowedTransitions[targetEnv]
+                    echo "promotion: ${env.SOURCE_ENVIRONMENT} -> ${env.TARGET_ENVIRONMENT}"
+
+                    if (params.VERSION_OVERRIDE?.trim()) {
+                        env.APP_VERSION = params.VERSION_OVERRIDE.trim()
+                    } else {
+                        readVersion()
+                    }
+
+                    validateVersion()
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 3: Version Gate
+        // ───────────────────────────────────────────
+        stage('Version Gate') {
+            steps {
+                versionGate(environment: env.TARGET_ENVIRONMENT)
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 4: Verify Image Exists in ECR
+        // ───────────────────────────────────────────
+        stage('Verify Image in ECR') {
+            steps {
+                script {
+                    String repo = pipelineConfig.libraries?.ecr?.ecr_repository ?: 'petclinic'
+                    echo "promotion: verifying image '${env.APP_VERSION}' exists in repository '${repo}'..."
+
+                    int found = sh(
+                        script: "aws ecr describe-images --repository-name ${repo} --image-ids imageTag=${env.APP_VERSION}",
+                        returnStatus: true
+                    )
+                    if (found != 0) {
+                        error "promotion: image tag '${env.APP_VERSION}' was not found in ECR repository '${repo}'. Promotion requires an already-published image."
+                    }
+                    echo "promotion: confirmed '${env.APP_VERSION}' exists in ECR."
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 5: GitOps Update & Create Promotion PR
+        // ───────────────────────────────────────────
+        stage('GitOps: Update Target & Open PR') {
+            steps {
+                script {
+                    updateValues(environment: env.TARGET_ENVIRONMENT, version: env.APP_VERSION)
+                    createPromotionPR(
+                        version: env.APP_VERSION,
+                        source_environment: env.SOURCE_ENVIRONMENT,
+                        target_environment: env.TARGET_ENVIRONMENT
+                    )
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 6: Await Human PR Review & Merge
+        // ───────────────────────────────────────────
+        stage('Await PR Review & Merge') {
+            input {
+                message "Promotion PR for ${env.APP_VERSION} (${env.SOURCE_ENVIRONMENT} -> ${env.TARGET_ENVIRONMENT}) opened. Confirm it has been reviewed and merged."
+                ok "Confirm Merged"
+            }
+            steps {
+                echo "promotion: PR merge confirmed by human reviewer."
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 7: Register Promotion
+        // ───────────────────────────────────────────
+        stage('Register Promotion') {
+            steps {
+                registerVersion(environment: env.TARGET_ENVIRONMENT, version: env.APP_VERSION)
+            }
+        }
     }
 
-    stage('Register Promotion') {
-        registerVersion(environment: env.TARGET_ENVIRONMENT)
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "promotion: SUCCEEDED. '${env.APP_VERSION}' registered for '${env.TARGET_ENVIRONMENT}'."
+        }
+        failure {
+            echo "promotion: FAILED for version '${env.APP_VERSION ?: 'N/A'}' -> '${env.TARGET_ENVIRONMENT ?: 'N/A'}'."
+        }
     }
-
-    echo "promotion: completed. '${env.APP_VERSION}' registered for '${env.TARGET_ENVIRONMENT}'."
 }

@@ -1,77 +1,162 @@
-// JTE/app_ci/Jenkinsfile
+// pipelines_templates/AtosGradProj/app_ci/Jenkinsfile
 //
-// Application CI: builds, tests, scans, and publishes the PetClinic image,
-// then updates the 'dev' GitOps values. Argo CD owns everything after the
-// GitOps commit — this pipeline does not touch Kubernetes/Argo CD.
-//
+// Application CI Pipeline (Declarative Syntax)
 // Flow:
-//   Checkout -> Change Detection -> Read Version -> Maven Test -> Sonar
-//   -> Package -> Docker Build -> Trivy Image Scan -> ECR Push
-//   -> GitOps Dev Update
-//
-// Jenkins job setup: point this job's "Script Path" (multibranch) or
-// Pipeline definition at 'JTE/app_ci/Jenkinsfile'. Libraries are wired in
-// the adjacent pipeline_config.groovy — JTE loads it automatically from
-// the same directory as this file.
+//   Checkout -> Change Detection -> Read Version -> Maven Verify & Test
+//   -> SonarQube -> Package -> ECR Login -> Docker Build -> Trivy Scan
+//   -> ECR Push -> GitOps Dev Update
 
+pipeline {
+    agent {
+        label 'master'
+    }
 
-node('master'){
+    stages {
+
+        // ───────────────────────────────────────────
+        // STAGE 1: Checkout Source Code
+        // ───────────────────────────────────────────
         stage('Checkout') {
-            checkout scm
-        }
-
-        stage('Change Detection') {
-            if (!applicationChanged()) {
-                echo "app_ci: no changes under application/** or JTE/** — skipping the rest of the application pipeline."
-                currentBuild.result = 'SUCCESS'
-                return
+            steps {
+                checkout scm
             }
         }
 
+        // ───────────────────────────────────────────
+        // STAGE 2: Change Detection
+        // ───────────────────────────────────────────
+        stage('Change Detection') {
+            steps {
+                script {
+                    if (!applicationChanged()) {
+                        echo "app_ci: no changes under application/** or JTE/** — skipping the rest of the application pipeline."
+                        currentBuild.result = 'SUCCESS'
+                    }
+                }
+            }
+        }
+
+        // ───────────────────────────────────────────
+        // STAGE 3: Read Application Version
+        // ───────────────────────────────────────────
         stage('Read Version') {
-            readVersion()
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                readVersion()
+            }
         }
 
-        stage('Maven Test') {
-            // Fails the build on any test failure (see maven/test.groovy).
-            test()
+        // ───────────────────────────────────────────
+        // STAGE 4: Maven Test & Verify (Unit + Integration Tests)
+        // ───────────────────────────────────────────
+        stage('Maven Test & Verify') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                verify()
+            }
         }
 
-        stage('Maven Verify') {
-            verify()
+        // ───────────────────────────────────────────
+        // STAGE 5: SonarQube Code Quality Scan
+        // ───────────────────────────────────────────
+        stage('SonarQube Scan') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                scan()
+            }
         }
 
-        stage('Sonar') {
-            // Non-blocking by default policy — see sonar/library_config.groovy.
-            scan()
+        // ───────────────────────────────────────────
+        // STAGE 6: Package Application JAR
+        // ───────────────────────────────────────────
+        stage('Package Application') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                packageApp()
+            }
         }
 
-        stage('Package') {
-            packageApp()
-        }
-
-        assumeRole {
-            stage('ECR Login') {
+        // ───────────────────────────────────────────
+        // STAGE 7: ECR Login
+        // ───────────────────────────────────────────
+        stage('ECR Login') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
                 login()
             }
+        }
 
-            stage('Docker Build') {
+        // ───────────────────────────────────────────
+        // STAGE 8: Docker Image Build
+        // ───────────────────────────────────────────
+        stage('Docker Build') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
                 buildImage()
             }
+        }
 
-
-            stage('Trivy Image Scan') {
+        // ───────────────────────────────────────────
+        // STAGE 9: Trivy Vulnerability Scan
+        // ───────────────────────────────────────────
+        stage('Trivy Image Scan') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
                 scanImage()
             }
+        }
 
-            stage('Push to ECR') {
+        // ───────────────────────────────────────────
+        // STAGE 10: Push Image to AWS ECR
+        // ───────────────────────────────────────────
+        stage('Push to ECR') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
                 pushImage()
             }
         }
 
+        // ───────────────────────────────────────────
+        // STAGE 11: GitOps Dev Environment Update
+        // ───────────────────────────────────────────
         stage('GitOps: Update dev') {
-            updateValues(environment: 'dev')
-            commitChanges(environment: 'dev')
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                script {
+                    updateValues(environment: 'dev')
+                    commitChanges(environment: 'dev')
+                }
+            }
         }
-        echo "app_ci: completed. Argo CD will reconcile the 'dev' environment from the GitOps commit."
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo "app_ci: Completed successfully for version ${env.APP_VERSION ?: 'N/A'}. Argo CD will reconcile 'dev'."
+        }
+        failure {
+            echo "app_ci: FAILED for version ${env.APP_VERSION ?: 'N/A'}."
+        }
+    }
 }
