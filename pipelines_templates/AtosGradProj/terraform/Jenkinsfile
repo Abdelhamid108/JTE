@@ -1,7 +1,7 @@
 // pipelines_templates/AtosGradProj/terraform/Jenkinsfile
 //
 // Hardened Declarative Infrastructure CI/CD Pipeline
-// Supports: PR Speculative Plan, Main Deployment, S3 Lineage Tracking, and Safe Destroy
+// Supports: AWS Assume Role, PR Speculative Plan, Main Deployment, S3 Lineage Tracking, and Safe Destroy
 
 pipeline {
     agent none
@@ -59,7 +59,9 @@ pipeline {
         stage('Terraform Init') {
             agent { label 'master' }
             steps {
-                init()
+                assumeRole {
+                    init()
+                }
             }
         }
 
@@ -69,7 +71,9 @@ pipeline {
         stage('Terraform Validate') {
             agent { label 'master' }
             steps {
-                validate()
+                assumeRole {
+                    validate()
+                }
             }
         }
 
@@ -79,7 +83,9 @@ pipeline {
         stage('Security Scan (Checkov)') {
             agent { label 'master' }
             steps {
-                checkov()
+                assumeRole {
+                    checkov()
+                }
             }
         }
 
@@ -89,7 +95,9 @@ pipeline {
         stage('Terraform Plan') {
             agent { label 'master' }
             steps {
-                plan()
+                assumeRole {
+                    plan()
+                }
             }
         }
 
@@ -120,10 +128,12 @@ pipeline {
             }
             steps {
                 script {
-                    if (params.ACTION == 'destroy') {
-                        destroy()
-                    } else {
-                        deploy()
+                    assumeRole {
+                        if (params.ACTION == 'destroy') {
+                            destroy()
+                        } else {
+                            deploy()
+                        }
                     }
                 }
             }
@@ -143,12 +153,14 @@ pipeline {
             }
             steps {
                 script {
-                    registerVersion(
-                        type: 'INFRASTRUCTURE',
-                        component: 'eks-cluster',
-                        version: env.APP_VERSION,
-                        environment: 'prod'
-                    )
+                    assumeRole {
+                        registerVersion(
+                            type: 'INFRASTRUCTURE',
+                            component: 'eks-cluster',
+                            version: env.APP_VERSION,
+                            environment: 'prod'
+                        )
+                    }
                 }
             }
         }
