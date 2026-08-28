@@ -42,10 +42,9 @@ void call(Map args = [:]) {
                 fi
             fi
 
-            pip3 install --break-system-packages checkov 2>/dev/null \
-                || pip3 install --user checkov 2>/dev/null \
-                || pip install --user checkov 2>/dev/null \
-                || pip3 install checkov 2>/dev/null \
+            pip3 install --break-system-packages --ignore-installed checkov 2>/dev/null \
+                || pip3 install --user --ignore-installed checkov 2>/dev/null \
+                || pip install --user --ignore-installed checkov 2>/dev/null \
                 || true
 
             # If installed to ~/.local/bin and /usr/local/bin is writable, create a symlink
