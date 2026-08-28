@@ -147,7 +147,6 @@ pipeline {
             when {
                 allOf {
                     branch 'main'
-                    expression { return params.ACTION == 'apply' }
                     not { changeRequest() }
                 }
             }
@@ -158,7 +157,8 @@ pipeline {
                             type: 'INFRASTRUCTURE',
                             component: 'eks-cluster',
                             version: env.APP_VERSION,
-                            environment: 'prod'
+                            environment: 'prod',
+                            status: (params.ACTION == 'destroy' ? 'DESTROYED' : 'ACTIVE')
                         )
                     }
                 }

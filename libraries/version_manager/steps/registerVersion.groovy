@@ -11,6 +11,7 @@ void call(Map args = [:]) {
     String type         = args.type ?: config.artifact_type 
     String component    = args.component ?: config.component_name ?: env.JOB_BASE_NAME 
     String registryPath = args.registry_path ?: config.registry_path
+    String status       = args.status ?: 'ACTIVE'
 
     if (!registryPath) error "registerVersion: 'registry_path' must be configured."
 
@@ -18,10 +19,10 @@ void call(Map args = [:]) {
     Map record = [
         type: type, component: component, version: version, commit_sha: commitSha,
         timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC')),
-        environment: environment, status: 'ACTIVE'
+        environment: environment, status: status
     ]
 
-    echo "version_manager: registering ${type} [${component}: ${version}] for '${environment}'..."
+    echo "version_manager: registering ${type} [${component}: ${version}] with status '${status}' for '${environment}'..."
 
     String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
     Map registry = [:]
@@ -33,9 +34,17 @@ void call(Map args = [:]) {
 
     if (type == 'INFRASTRUCTURE') {
         envNode.infrastructure = record
+        // When infrastructure is destroyed, all workloads hosted in that environment are also invalidated
+        if (status == 'DESTROYED') {
+            envNode.workloads = [:]
+        }
     } else {
         envNode.workloads = envNode.workloads ?: [:]
-        envNode.workloads[component] = record
+        if (status == 'DESTROYED') {
+            envNode.workloads.remove(component)
+        } else {
+            envNode.workloads[component] = record
+        }
     }
 
     registry.history << record 
