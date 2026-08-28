@@ -23,26 +23,23 @@ void call(Map args = [:]) {
 
     echo "version_manager: registering ${type} [${component}: ${version}] for '${environment}'..."
 
-    lock(config.lock_resource_name ?: 'jte-version-registry') {
-        
-        String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
-        Map registry = [:]
-        try { registry = readJSON(text: content) } catch (Exception e) {}
+    String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
+    Map registry = [:]
+    try { registry = readJSON(text: content) } catch (Exception e) {}
 
-        registry.environments = registry.environments ?: [:]
-        def envNode = registry.environments[environment] = registry.environments[environment] ?: [:]
-        registry.history = registry.history ?: []
+    registry.environments = registry.environments ?: [:]
+    def envNode = registry.environments[environment] = registry.environments[environment] ?: [:]
+    registry.history = registry.history ?: []
 
-        if (type == 'INFRASTRUCTURE') {
-            envNode.infrastructure = record
-        } else {
-            envNode.workloads = envNode.workloads ?: [:]
-            envNode.workloads[component] = record
-        }
-
-        registry.history << record 
-
-        writeJSON file: 'registry_tmp.json', json: registry, pretty: 4
-        sh "aws s3 cp registry_tmp.json '${registryPath}' && rm -f registry_tmp.json"
+    if (type == 'INFRASTRUCTURE') {
+        envNode.infrastructure = record
+    } else {
+        envNode.workloads = envNode.workloads ?: [:]
+        envNode.workloads[component] = record
     }
+
+    registry.history << record 
+
+    writeJSON file: 'registry_tmp.json', json: registry, pretty: 4
+    sh "aws s3 cp registry_tmp.json '${registryPath}' && rm -f registry_tmp.json"
 }
