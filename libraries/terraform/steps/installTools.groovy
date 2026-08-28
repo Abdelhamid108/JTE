@@ -6,6 +6,8 @@ void call(Map args = [:]) {
     echo "Checking agent dependencies (Terraform & Checkov)..."
 
     sh """
+        export PATH="\${HOME}/.local/bin:/usr/local/bin:\$PATH"
+
         # 1. Install Terraform if not present
         if ! command -v terraform >/dev/null 2>&1; then
             echo "installTools: Terraform not found in PATH. Installing Terraform v${tfVersion}..."
@@ -20,7 +22,7 @@ void call(Map args = [:]) {
             
             if command -v unzip >/dev/null 2>&1; then
                 unzip -q -o /tmp/terraform.zip -d "\$TARGET_DIR"
-            else
+            elif command -v python3 >/dev/null 2>&1; then
                 python3 -c "import zipfile; zipfile.ZipFile('/tmp/terraform.zip').extractall('\$TARGET_DIR')"
             fi
             
@@ -32,15 +34,38 @@ void call(Map args = [:]) {
         # 2. Install Checkov if not present
         if ! command -v checkov >/dev/null 2>&1; then
             echo "installTools: Checkov not found in PATH. Installing Checkov..."
-            pip3 install --break-system-packages checkov 2>/dev/null || pip3 install --user checkov 2>/dev/null || pip install --user checkov 2>/dev/null || true
+            if ! command -v pip3 >/dev/null 2>&1 && ! command -v pip >/dev/null 2>&1; then
+                if command -v apt-get >/dev/null 2>&1 && [ "\$(id -u)" -eq 0 ]; then
+                    apt-get update -qq && apt-get install -y -qq python3-pip
+                elif command -v apk >/dev/null 2>&1 && [ "\$(id -u)" -eq 0 ]; then
+                    apk add --no-cache py3-pip
+                fi
+            fi
+
+            pip3 install --break-system-packages checkov 2>/dev/null \
+                || pip3 install --user checkov 2>/dev/null \
+                || pip install --user checkov 2>/dev/null \
+                || pip3 install checkov 2>/dev/null \
+                || true
+
+            # If installed to ~/.local/bin and /usr/local/bin is writable, create a symlink
+            if [ -f "\${HOME}/.local/bin/checkov" ] && [ -w "/usr/local/bin" ] && [ ! -f "/usr/local/bin/checkov" ]; then
+                ln -sf "\${HOME}/.local/bin/checkov" /usr/local/bin/checkov
+            fi
         fi
 
         # 3. Verify tools
+        export PATH="\${HOME}/.local/bin:/usr/local/bin:\$PATH"
         if command -v terraform >/dev/null 2>&1; then
             terraform -version
         else
-            export PATH="\${HOME}/.local/bin:\$PATH"
-            terraform -version || echo "Warning: Please ensure ~/.local/bin is in PATH"
+            echo "Warning: Terraform not found in PATH"
+        fi
+
+        if command -v checkov >/dev/null 2>&1; then
+            checkov --version
+        else
+            echo "Warning: Checkov could not be verified in PATH. Ensure ~/.local/bin or Python bin is in PATH."
         fi
     """
 }
