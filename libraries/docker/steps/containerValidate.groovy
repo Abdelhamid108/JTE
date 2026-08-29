@@ -2,11 +2,15 @@
 
 void call(Map args = [:]) {
     String containerName = "validate-${env.BUILD_ID}"
-    int containerPort    = config.container_port as Integer
-    String healthPath    = config.health_check_path
-    String image         = env.IMAGE_URI
-    int maxRetries       = 12
+    int containerPort    = (args.container_port ?: config.container_port ?: 8080) as Integer
+    String healthPath    = args.health_check_path ?: config.health_check_path ?: "/actuator/health"
+    String image         = args.image ?: env.IMAGE_URI ?: env.PIPELINE_IMAGE
+    int maxRetries       = (args.max_retries ?: (config.validate_wait_seconds ? (config.validate_wait_seconds / 5) : 12)) as Integer
     int retryInterval    = 5
+
+    if (!image) {
+        error "docker/containerValidate: No image specified and neither IMAGE_URI nor PIPELINE_IMAGE is set."
+    }
 
     echo "═══════════════════════════════════════════"
     echo "  CONTAINER SMOKE TEST — ${image}"

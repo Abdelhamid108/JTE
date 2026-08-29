@@ -115,7 +115,7 @@ pipeline {
             }
             steps {
                 script {
-                    login()
+                    dockerLogin()
                     def tags = tag()
                     push(tags)
                 }
@@ -178,7 +178,7 @@ pipeline {
 
                     promoteVersion(target_environment: 'PRODUCTION')
 
-                    login()
+                    dockerLogin()
 
                     promoteDockerImage(
                         source_image: "${imageName}:dev-${version}",

@@ -6,15 +6,12 @@ fields {
         ecr_repository = String
     }
     optional {
-        aws_account_id  = String
-        dockerfile_path = String   // Path to Dockerfile. Default: 'Dockerfile'
-        build_context   = String   // Docker build context directory. Default: '.'
+        aws_account_id = String
     }
 }
 
 steps {
     login
-    buildImage
     pushImage
     promoteImage
 }

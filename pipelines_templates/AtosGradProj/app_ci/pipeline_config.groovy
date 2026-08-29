@@ -27,11 +27,16 @@ libraries {
         enforce_quality_gate = true
     }
 
+    docker {
+        dockerfile_path    = "application/Dockerfile"
+        build_context      = "application"
+        container_port     = 8080
+        health_check_path  = "/actuator/health"
+    }
+
     ecr {
         aws_region         = "us-east-1"
         ecr_repository     = "petclinic-project/petclinitc-app"
-        dockerfile_path    = "application/Dockerfile"
-        build_context      = "application"
     }   
     
     trivy {
@@ -39,12 +44,6 @@ libraries {
         exit_code          = "1"
         app_dir            = "application"
         timeout            = "20m"
-    }
-
-    docker {
-       // install_tools      = false
-        container_port     = 8080
-        health_check_path  = "/actuator/health"
     }
 
     release {
