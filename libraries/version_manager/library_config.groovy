@@ -14,6 +14,7 @@ fields {
         lock_resource_name  = String   // Jenkins lockable resource name for S3 sync
         artifact_type       = String   // e.g. 'APPLICATION', 'INFRASTRUCTURE'
         component_name      = String   // e.g. 'petclinic', 'eks-cluster'
+        coverage_threshold  = Integer  // e.g. 80 (JaCoCo minimum instruction coverage %)
     }
 }
 
