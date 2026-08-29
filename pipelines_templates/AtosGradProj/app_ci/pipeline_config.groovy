@@ -22,8 +22,8 @@ libraries {
 
     sonar {
         sonar_project        = "petclinic"
-        sonar_credentials_id = "sonarqube-token"
-        sonar_host_url       = "http://localhost:9000"
+        sonar_credentials_id = "petclinic-sonar-cred"
+        sonar_host_url       = "http://sonarqube:9000"
         enforce_quality_gate = true
     }
 
