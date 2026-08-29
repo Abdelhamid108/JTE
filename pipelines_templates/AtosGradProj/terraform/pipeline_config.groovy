@@ -10,20 +10,20 @@ libraries {
         aws_region         = "us-east-1"
         role_session_name  = "TerraformProvisioningSession"
         role_duration      = 3600
-        target_environment = "prod"
     }
 
     terraform {
-        infra_dir     = "."
-        install_tools = true
-        softFail      = true   
-        tf_vars       = "petclinic-tfvars"
+        infra_dir          = "."
+        install_tools      = true
+        softFail           = true   
+        tf_vars            = "petclinic-tfvars"
+        target_environment = "prod"
     }
 
     version_manager {
         app_dir            = "."
         version_file       = "INFRA_VERSION"
         registry_path      = "s3://petclinic-platform-version-registry-069089526123-us-east-1-an/version-registry.json"
-        lock_resource_name = "atos-version-registry"
+        target_environment = "prod"
     }
 }
