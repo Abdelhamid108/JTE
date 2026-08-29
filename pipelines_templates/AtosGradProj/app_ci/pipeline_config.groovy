@@ -23,13 +23,13 @@ libraries {
     sonar {
         sonar_project        = "petclinic"
         sonar_credentials_id = "sonarqube-token"
-        sonar_host_url       = "http://sonarqube:9000"
+        sonar_host_url       = "http://localhost:9000"
         enforce_quality_gate = true
     }
 
     ecr {
         aws_region         = "us-east-1"
-        ecr_repository     = "petclinic"
+        ecr_repository     = "petclinic-project/petclinitc-app"
         dockerfile_path    = "application/Dockerfile"
         build_context      = "application"
     }   
