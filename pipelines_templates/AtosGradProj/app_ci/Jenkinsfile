@@ -1,10 +1,8 @@
 // pipelines_templates/AtosGradProj/app_ci/Jenkinsfile
 //
-// Hardened Multi-Branch Declarative CI/CD Pipeline for Atos Graduation Project
-// - Enforces SonarQube Quality Gate & Trivy Security Scans
-// - Enforces Semantic Versioning via S3 Monotonic Version Gate (dev -> test -> prod)
-// - Handles Full Lifecycle: Feature PR -> Dev Merge -> Test Promotion -> Prod Release
-// - Deploys via Argo CD Image Updater (Zero Git push in Jenkins, Zero :latest mutable tag)
+// Declarative CI/CD Pipeline — Atos Graduation Project
+// Flow: Feature PR -> Dev Merge -> Test Promotion -> Prod Release
+// Deploys via Argo CD Image Updater (immutable tags: dev-*, test-*, prod-*)
 
 pipeline {
     agent none
@@ -17,277 +15,122 @@ pipeline {
 
     stages {
 
-        // ═══════════════════════════════════════════
-        // STAGE 1: Single Top-Level Checkout & Setup
-        // ═══════════════════════════════════════════
-        stage('Checkout & Setup') {
+        // ── ALL BRANCHES & PRs ──────────────────────────────────
+        stage('Checkout & Read Version') {
             agent { label 'master' }
             steps {
                 checkout scm
-                script {
-                    readVersion()
-                    env.APP_NAME = pipelineConfig?.libraries?.ecr?.ecr_repository ?: 'petclinic'
-                    login()
-                    echo "════════════════════════════════════════════════════"
-                    echo "  Target App:     ${env.APP_NAME}"
-                    echo "  App Version:    ${env.APP_VERSION}"
-                    echo "  ECR Registry:   ${env.ECR_REGISTRY}"
-                    echo "  Branch / Event: ${env.BRANCH_NAME} (PR Target: ${env.CHANGE_TARGET ?: 'N/A'})"
-                    echo "════════════════════════════════════════════════════"
-                }
+                readVersion()
             }
         }
 
-        // ═══════════════════════════════════════════
-        // STAGE 2: Version Gate (DEV)
-        // ═══════════════════════════════════════════
-        stage('Version Gate (DEV)') {
+        // ── DEV / PR→dev: Source Quality Gates ─────────────────
+        stage('Build & Test') {
             agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
-            steps {
-                script {
-                    boolean isPR = env.CHANGE_ID != null
-                    versionGate(
-                        environment:       'dev',
-                        component:         env.APP_NAME,
-                        type:              'APPLICATION',
-                        skip_active_check: isPR
-                    )
-                }
-            }
+            when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
+            steps { verify() }
         }
 
-        // ═══════════════════════════════════════════
-        // STAGES 3-8: Consolidated Build, Test & Validation (PR & Dev)
-        // ═══════════════════════════════════════════
-        stage('Build, Test & JaCoCo Coverage') {
+        stage('Trivy Dependency Scan') {
             agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
-            steps {
-                // Compiles, executes unit & integration tests with JaCoCo coverage, packages JAR
-                verify()
-            }
+            when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
+            steps { scanFilesystem() }
         }
 
-        stage('SonarQube Quality Gate') {
+        stage('SonarQube Analysis') {
             agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
-            steps {
-                scan()
-            }
+            when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
+            steps { scan() }
         }
 
-        stage('Trivy Filesystem Scan') {
-            agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
-            steps {
-                scanFilesystem()
-            }
-        }
-
+        // ── DEV / PR→dev: Container Quality Gates ──────────────
         stage('Docker Build') {
             agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
+            when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
             steps {
-                buildImage(version: env.APP_VERSION)
+                login()
+                buildImage()
             }
         }
 
         stage('Container Smoke Validation') {
             agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
-            steps {
-                containerValidate(image_uri: env.IMAGE_URI)
-            }
+            when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
+            steps { containerValidate() }
         }
 
         stage('Trivy Image Scan') {
             agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'dev'
-                    changeRequest(target: 'dev')
-                }
-            }
-            steps {
-                scanImage(image_uri: env.IMAGE_URI)
-            }
+            when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
+            steps { scanImage() }
         }
 
-        // ═══════════════════════════════════════════
-        // STAGE 9: Publish Dev Golden Image (dev merge only)
-        // ═══════════════════════════════════════════
-        stage('Publish to ECR (DEV)') {
+        // ── DEV MERGE: Publish ──────────────────────────────────
+        stage('Version Gate (DEV)') {
             agent { label 'master' }
-            when {
-                branch 'dev'
-                not { changeRequest() }
-            }
-            steps {
-                script {
-                    pushImage()
-                    promoteDockerImage(
-                        source_image: env.IMAGE_URI,
-                        target_image: "${env.ECR_REGISTRY}/${env.APP_NAME}:dev-${env.APP_VERSION}"
-                    )
-                    registerVersion(
-                        environment: 'dev',
-                        version:     env.APP_VERSION,
-                        component:   env.APP_NAME,
-                        type:        'APPLICATION',
-                        status:      'ACTIVE'
-                    )
-                    echo "app_ci: Published dev-${env.APP_VERSION}. Argo CD Image Updater will auto-deploy to Dev."
-                }
-            }
+            when { branch 'dev'; not { changeRequest() } }
+            steps { versionGate(environment: 'dev') }
         }
 
-        // ═══════════════════════════════════════════
-        // STAGE 10: Staging Promotion (test merge only)
-        // ═══════════════════════════════════════════
+        stage('Push Image (DEV)') {
+            agent { label 'master' }
+            when { branch 'dev'; not { changeRequest() } }
+            steps { pushImage(environment: 'dev') }
+        }
+
+        // ── TEST BRANCH: Promote ────────────────────────────────
         stage('Version Gate (TEST)') {
             agent { label 'master' }
-            when {
-                branch 'test'
-                not { changeRequest() }
-            }
+            when { branch 'test'; not { changeRequest() } }
             steps {
-                versionGate(environment: 'test', component: env.APP_NAME, type: 'APPLICATION')
+                login()
+                versionGate(environment: 'test')
             }
         }
 
-        stage('Promote Image to TEST') {
+        stage('Promote Image (TEST)') {
             agent { label 'master' }
-            when {
-                branch 'test'
-                not { changeRequest() }
-            }
-            steps {
-                script {
-                    promoteDockerImage(
-                        source_image: "${env.ECR_REGISTRY}/${env.APP_NAME}:${env.APP_VERSION}",
-                        target_image: "${env.ECR_REGISTRY}/${env.APP_NAME}:test-${env.APP_VERSION}"
-                    )
-                    registerVersion(
-                        environment: 'test',
-                        version:     env.APP_VERSION,
-                        component:   env.APP_NAME,
-                        type:        'APPLICATION',
-                        status:      'ACTIVE'
-                    )
-                    echo "app_ci: Published test-${env.APP_VERSION}. Argo CD Image Updater will auto-deploy to Test."
-                }
-            }
+            when { branch 'test'; not { changeRequest() } }
+            steps { promoteImage(environment: 'test') }
         }
 
-        // ═══════════════════════════════════════════
-        // STAGES 11-14: Production Release (main merge only)
-        // ═══════════════════════════════════════════
+        // ── MAIN BRANCH: Production Release ────────────────────
         stage('Version Gate (PROD)') {
             agent { label 'master' }
-            when {
-                branch 'main'
-                not { changeRequest() }
-            }
+            when { branch 'main'; not { changeRequest() } }
             steps {
-                versionGate(environment: 'prod', component: env.APP_NAME, type: 'APPLICATION')
+                login()
+                versionGate(environment: 'prod')
             }
         }
 
         stage('Production Approval Guardrail') {
-            when {
-                branch 'main'
-                not { changeRequest() }
-            }
-            options {
-                timeout(time: 24, unit: 'HOURS')
-            }
+            when { branch 'main'; not { changeRequest() } }
+            options { timeout(time: 24, unit: 'HOURS') }
             steps {
-                input message: "Approve deployment of ${env.APP_NAME}:${env.APP_VERSION} to PRODUCTION?", ok: "Release to Prod"
+                input message: "Approve deployment to PRODUCTION?", ok: "Release to Prod"
             }
         }
 
         stage('Production Fresh CVE Scan') {
             agent { label 'master' }
-            when {
-                branch 'main'
-                not { changeRequest() }
-            }
-            steps {
-                script {
-                    sh "docker pull ${env.ECR_REGISTRY}/${env.APP_NAME}:${env.APP_VERSION}"
-                    scanImage(image_uri: "${env.ECR_REGISTRY}/${env.APP_NAME}:${env.APP_VERSION}")
-                }
-            }
+            when { branch 'main'; not { changeRequest() } }
+            steps { scanImage(fresh_pull: true) }
         }
 
-        stage('Promote Image to PROD') {
+        stage('Release to PROD') {
             agent { label 'master' }
-            when {
-                branch 'main'
-                not { changeRequest() }
-            }
+            when { branch 'main'; not { changeRequest() } }
             steps {
-                script {
-                    promoteDockerImage(
-                        source_image: "${env.ECR_REGISTRY}/${env.APP_NAME}:${env.APP_VERSION}",
-                        target_image: "${env.ECR_REGISTRY}/${env.APP_NAME}:prod-${env.APP_VERSION}"
-                    )
-                    createTag(version: env.APP_VERSION)
-                    registerVersion(
-                        environment: 'prod',
-                        version:     env.APP_VERSION,
-                        component:   env.APP_NAME,
-                        type:        'APPLICATION',
-                        status:      'ACTIVE'
-                    )
-                    echo "app_ci: Published prod-${env.APP_VERSION}. Argo CD Image Updater will auto-deploy to Production."
-                }
+                promoteImage(environment: 'prod')
+                createTag()
             }
         }
     }
 
     post {
-        always {
-            node('master') {
-                cleanWs()
-            }
-        }
-        success {
-            echo "app_ci: Pipeline SUCCEEDED for branch '${env.BRANCH_NAME}' (Version: ${env.APP_VERSION ?: 'N/A'})."
-        }
-        failure {
-            echo "app_ci: Pipeline FAILED on branch '${env.BRANCH_NAME}' (Version: ${env.APP_VERSION ?: 'N/A'})."
-        }
+        always  { node('master') { cleanWs() } }
+        success { echo "app_ci: SUCCEEDED — branch '${env.BRANCH_NAME}' (${env.APP_VERSION ?: 'N/A'})" }
+        failure { echo "app_ci: FAILED    — branch '${env.BRANCH_NAME}' (${env.APP_VERSION ?: 'N/A'})" }
     }
 }
