@@ -20,7 +20,16 @@ Map call(Map args = [:]) {
     try { reg = readJSON(text: content) } catch (Exception ignored) {}
 
     Map envNode = reg.environments ? reg.environments[environment] : null
-    Map candidate = envNode ? ((type == 'INFRASTRUCTURE') ? envNode.infrastructure : envNode.workloads?[component]) : null
+    Map candidate = null
+
+    if (envNode) {
+        if (type == 'INFRASTRUCTURE') {
+            candidate = envNode.infrastructure
+        } else if (envNode.workloads) {
+            candidate = envNode.workloads[component]
+        }
+    }
+
     Map activeRecord = (candidate?.version == version && candidate?.status == 'ACTIVE') ? candidate : null
 
     echo activeRecord ? "checkVersion: ${version} is ACTIVE in ${environment}."
