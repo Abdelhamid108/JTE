@@ -1,16 +1,11 @@
-// steps/verify.groovy — Run the Maven 'verify' phase.
-//
-// Used ahead of static-analysis (sonar/scan) so that compiled classes and
-// coverage data exist for the scanner to analyze. Does not replace
-// maven/test — verify still runs the full test lifecycle by design, so it
-// must not be configured to skip tests.
+// steps/verify.groovy — Run the Maven 'verify' phase
 
-void call(Map args = [:]) {
-    String appDir       = args.app_dir       ?: config.app_dir       ?: 'application'
-    String mavenCommand = args.maven_command ?: config.maven_command ?: './mvnw'
+void call() {
+    String appDir = config.app_dir      ?: '.'
+    String mvnCmd = config.maven_command ?: 'mvn'
 
-    echo "maven/verify: running '${mavenCommand} verify' in '${appDir}'"
+    echo "maven/verify: running '${mvnCmd} verify' in '${appDir}'"
     dir(appDir) {
-        sh "${mavenCommand} -B verify"
+        sh "${mvnCmd} -B verify"
     }
 }
