@@ -1,21 +1,23 @@
 // steps/destroy.groovy
+//
+// Applies a destroy plan file produced by steps/plan.groovy.
+// Unstashes the plan artifact before applying.
 
 void call() {
-    String targetDir  = config.infra_dir ?: '.'
-    String cloudCreds = config.cloud_creds
+    String targetDir = config.infra_dir ?: '.'
 
-    echo "Destroying infrastructure..."
-    def runDestroy = {
-        dir(targetDir) {
-            sh "terraform apply ${env.TF_PLAN_FILE}"
-        }
+    boolean isDestroy = (params.ACTION == 'destroy') || (config.is_destroy ? config.is_destroy.toString().toBoolean() : false)
+    if (!isDestroy) {
+        error "terraform/destroy: refusing to run — this build was not explicitly configured for destroy (params.ACTION != 'destroy')."
     }
 
-    if (cloudCreds) {
-        withCredentials([aws(credentialsId: cloudCreds, accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-            runDestroy()
-        }
-    } else {
-        runDestroy()
+    if (!env.TF_PLAN_FILE) {
+        error "destroy: No Plan Found in the environment. Run Plan step first."
+    }
+
+    echo "Destroying infrastructure..."
+    dir(targetDir) {
+        unstash 'tfplan'
+        sh "terraform apply ${env.TF_PLAN_FILE}"
     }
 }

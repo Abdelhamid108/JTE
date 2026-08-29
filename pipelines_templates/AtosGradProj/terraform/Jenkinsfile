@@ -1,0 +1,93 @@
+// pipelines_templates/AtosGradProj/terraform/Jenkinsfile
+//
+// Policy-driven Infrastructure CI/CD Pipeline.
+// Governance (security enforcement, S3 lineage, workspace cleanup) is handled
+// transparently by JTE lifecycle hooks in steps/governanceHooks.groovy.
+
+pipeline {
+    agent none
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    parameters {
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Infrastructure lifecycle action')
+    }
+
+    stages {
+
+        // Stage 1: Checkout Infrastructure Code
+        stage('Checkout Code') {
+            agent { label 'master' }
+            steps {
+                checkoutCode()
+                script {
+                    readVersion()
+                    echo "Version: ${env.APP_VERSION} | Action: ${params.ACTION} | Branch: ${env.BRANCH_NAME}"
+                }
+            }
+        }
+
+        // Stage 2: Install Agent Tools (conditional — only if install_tools=true in pipeline_config)
+        stage('Install Tools') {
+            agent { label 'master' }
+            when { expression { pipelineConfig.libraries?.terraform?.install_tools == true } }
+            steps { installTools() }
+        }
+
+        // Stage 3: Security Policy Gate
+        // Runs Checkov SAST scan and sets SECURITY_POLICY_PASSED=true.
+        // The @BeforeStep(deploy) hook enforces this as a hard gate if the stage is bypassed.
+        stage('Security Policy Gate') {
+            agent { label 'master' }
+            steps {
+                assumeRole { checkov() }
+            }
+        }
+
+        // Stage 4: Terraform Init + Speculative Plan
+        // Stashes the exact plan binary for guaranteed plan-to-apply integrity.
+        stage('Terraform Plan') {
+            agent { label 'master' }
+            steps {
+                assumeRole {
+                    init()
+                    plan()
+                }
+            }
+        }
+
+        // Stage 5: Approval Guardrail (main branch only)
+        // Releases the executor while waiting for human sign-off.
+        stage('Approval Guardrail') {
+            when { branch 'main'; not { changeRequest() } }
+            options { timeout(time: 24, unit: 'HOURS') }
+            steps { approval(is_destroy: params.ACTION == 'destroy') }
+        }
+
+        // Stage 6: Execute Deploy / Destroy
+        // @BeforeStep hook verifies SECURITY_POLICY_PASSED before deploy() runs.
+        // @AfterStep hook registers ACTIVE or DESTROYED lineage in S3 after execution.
+        stage('Execute') {
+            agent { label 'master' }
+            when { branch 'main'; not { changeRequest() } }
+            steps {
+                script {
+                    assumeRole {
+                        if (params.ACTION == 'destroy') { destroy() }
+                        else                            { deploy()  }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always  { node('master') { cleanWs() } }
+        success { echo "terraform_ci: ${params.ACTION} succeeded — ${env.APP_VERSION ?: 'N/A'} on ${env.BRANCH_NAME}" }
+        failure { echo "terraform_ci: ${params.ACTION} FAILED — ${env.APP_VERSION ?: 'N/A'} on ${env.BRANCH_NAME}" }
+    }
+}

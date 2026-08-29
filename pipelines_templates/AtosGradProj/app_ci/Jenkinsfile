@@ -1,0 +1,139 @@
+// pipelines_templates/AtosGradProj/app_ci/Jenkinsfile
+//
+// Optimized Declarative Application CI Pipeline for Atos Graduation Project
+
+pipeline {
+    agent {
+        label 'master'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Change Detection') {
+            steps {
+                script {
+                    if (!applicationChanged()) {
+                        echo "app_ci: no changes under application/** or JTE/** — skipping."
+                        currentBuild.result = 'SUCCESS'
+                    }
+                }
+            }
+        }
+
+        stage('Read & Gate Version') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                readVersion()
+                versionGate(environment: 'dev')
+            }
+        }
+
+        stage('Build, Test & Package') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                // Runs './mvnw clean verify' (Unit tests, JaCoCo coverage, and JAR package)
+                verify()
+            }
+        }
+
+        stage('SonarQube Quality Scan') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                scan()
+            }
+        }
+
+        stage('Trivy Dependency Scan') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                scanFilesystem()
+            }
+        }
+
+        stage('Docker Build') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                buildImage()
+            }
+        }
+
+        stage('Container Health Validation') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                containerValidate()
+            }
+        }
+
+        stage('Trivy Image Scan') {
+            when {
+                expression { return currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                scanImage()
+            }
+        }
+
+        stage('ECR Login & Push') {
+            when {
+                allOf {
+                    expression { return currentBuild.result != 'SUCCESS' }
+                    branch 'main'
+                    not { changeRequest() }
+                }
+            }
+            steps {
+                login()
+                pushImage()
+            }
+        }
+
+        stage('GitOps: Deploy to Dev') {
+            when {
+                allOf {
+                    expression { return currentBuild.result != 'SUCCESS' }
+                    branch 'main'
+                    not { changeRequest() }
+                }
+            }
+            steps {
+                script {
+                    updateValues(environment: 'dev')
+                    commitChanges(environment: 'dev')
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                try { cleanup() } catch (e) { echo "Docker cleanup skipped: ${e.message}" }
+            }
+            cleanWs()
+        }
+        success {
+            echo "app_ci: Pipeline SUCCEEDED for version ${env.APP_VERSION ?: 'N/A'}. Argo CD will reconcile 'dev'."
+        }
+        failure {
+            echo "app_ci: Pipeline FAILED for version ${env.APP_VERSION ?: 'N/A'}."
+        }
+    }
+}
