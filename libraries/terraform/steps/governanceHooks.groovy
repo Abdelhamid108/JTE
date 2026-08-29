@@ -1,8 +1,7 @@
 // steps/governanceHooks.groovy — JTE Lifecycle Hooks for Terraform Governance
-import org.boozallen.plugins.jte.init.primitives.injectors.annotations.Validate
-import org.boozallen.plugins.jte.init.primitives.injectors.annotations.BeforeStep
-import org.boozallen.plugins.jte.init.primitives.injectors.annotations.AfterStep
-import org.boozallen.plugins.jte.init.primitives.injectors.annotations.CleanUp
+// NOTE: JTE injects @Validate, @BeforeStep, @AfterStep, @CleanUp into the
+// sandbox automatically. Do NOT import them — the Groovy classloader cannot
+// resolve them as explicit classes and will fail at parse time.
 
 // Validates required configuration fields before any stage runs.
 @Validate
@@ -10,7 +9,7 @@ void validateConfig() {
     if (!config.infra_dir)          { error "terraform: 'infra_dir' is required." }
     if (!config.target_environment) { error "terraform: 'target_environment' is required." }
     echo "terraform [@Validate]: config OK — dir='${config.infra_dir}', env='${config.target_environment}'"
-}
+} 
 
 // Blocks deploy() if the Security Policy Gate stage did not complete in this run.
 // If SECURITY_POLICY_PASSED is not set (stage was bypassed), Checkov is enforced here.
