@@ -11,13 +11,23 @@ void validateConfig() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 2. PRE-STEP INTERCEPTOR HOOK
+// 2. PRE-STEP POLICY INTERCEPTOR HOOK
 // ─────────────────────────────────────────────────────────────
 @BeforeStep
 void onBeforeStep() {
     String currentStep = hookContext?.step
 
-    if (currentStep == 'deploy') {
+    // Early Version Gate Policy: Intercepts init() before speculative planning runs
+    if (currentStep == 'init') {
+        if (params.ACTION != 'destroy') {
+            echo "terraform [@BeforeStep]: Enforcing Version Gate policy before init/plan..."
+            versionGate(
+                type:        'INFRASTRUCTURE',
+                component:   config.component_name ?: 'eks-cluster',
+                environment: config.target_environment ?: 'prod'
+            )
+        }
+    } else if (currentStep == 'deploy') {
         if (env.SECURITY_POLICY_PASSED != 'true') {
             echo "terraform [@BeforeStep]: Security stage was not completed — enforcing Checkov scan now."
             checkov()
