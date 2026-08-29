@@ -63,5 +63,5 @@ void onAfterStep() {
 // ─────────────────────────────────────────────────────────────
 @CleanUp
 void cleanup() {
-    sh "rm -f *.tfplan registry_tmp.json || true"
+    echo "terraform [@CleanUp]: Pipeline lifecycle finished."
 }
