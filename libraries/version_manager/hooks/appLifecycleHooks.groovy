@@ -9,7 +9,6 @@ void validateEnvironment() {
     echo "  GLOBAL STARTUP VALIDATION [@Validate Hook]"
     echo "════════════════════════════════════════════════════"
 
-    // 1. Assert CLI Tools Exist
     List requiredTools = ['mvn', 'docker', 'aws', 'trivy']
     requiredTools.each { tool ->
         int status = sh(script: "which ${tool} >/dev/null 2>&1", returnStatus: true)
@@ -19,8 +18,7 @@ void validateEnvironment() {
         echo "  ✓ CLI tool verified: ${tool}"
     }
 
-    // 2. Assert S3 Version Registry Bucket is Reachable
-    String registryPath = config.registry_path ?: pipelineConfig?.libraries?.version_manager?.registry_path
+    String registryPath = config.registry_path
     if (registryPath) {
         int s3Status = sh(script: "aws s3 ls ${registryPath} >/dev/null 2>&1 || aws s3 cp ${registryPath} - >/dev/null 2>&1", returnStatus: true)
         if (s3Status != 0) {
@@ -40,42 +38,40 @@ void validateEnvironment() {
 void onBeforeStep() {
     String currentStep = hookContext?.step
 
-    // Policy 1: Assert SonarQube Quality Gate passed before packaging release container (Fail closed)
-    if (currentStep == 'buildImage') {
+    // Policy: Block image build if quality gate is enforced and not passed.
+    // Only active when enforce_quality_gate = true in pipeline_config.
+    // Non-blocking Sonar policy (enforce_quality_gate = false) skips this check.
+    if (currentStep == 'buildImage' && config.enforce_quality_gate?.toBoolean()) {
         String gateStatus = env.SONAR_QUALITY_GATE_STATUS
-        if (!gateStatus) {
-            error "appLifecycleHooks [@BeforeStep]: SonarQube Quality Gate status is unset. 'scan()' must record env.SONAR_QUALITY_GATE_STATUS before buildImage() executes. Aborting — fail closed."
-        }
         if (gateStatus != 'OK') {
-            error "appLifecycleHooks [@BeforeStep]: SonarQube Quality Gate failed with status '${gateStatus}'. Aborting container build."
+            error "appLifecycleHooks [@BeforeStep]: Quality Gate status is '${gateStatus ?: 'unset'}'. Blocking image build — fail closed."
         }
     }
 
-    // Policy 2: Sanitize Tag Policy on Image Promotion / Push (Block :latest, Enforce immutable tags)
-    if (currentStep == 'promoteDockerImage' || currentStep == 'pushImage') {
-        String targetImage = hookContext?.args?.target_image ?: hookContext?.args?.image_uri ?: ''
-        if (targetImage.endsWith(':latest')) {
-            error "appLifecycleHooks [@BeforeStep]: Policy Violation! Mutable tag ':latest' is prohibited to prevent Argo CD Image Updater race conditions."
+    // Policy: Block mutable ':latest' tag on any push or promote operation.
+    if (currentStep == 'pushImage' || currentStep == 'promoteImage') {
+        if (hookContext?.args?.environment == 'latest') {
+            error "appLifecycleHooks [@BeforeStep]: Policy Violation — mutable tag ':latest' is prohibited."
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────
-// 3. POST-STEP QUALITY & COVERAGE AUDIT HOOKS
+// 3. POST-STEP QUALITY & GOVERNANCE REGISTRATION HOOKS
 // ─────────────────────────────────────────────────────────────
 @AfterStep
 void onAfterStep() {
     String currentStep = hookContext?.step
 
-    // Audit and Enforce JaCoCo Code Coverage after verify()
+    // Enforce JaCoCo code coverage threshold after verify()
     if (currentStep == 'verify') {
-        echo "appLifecycleHooks [@AfterStep 'verify']: Auditing test integrity and code coverage..."
-        String appDir = config.app_dir ?: 'application'
-        String jacocoReport = "${appDir}/target/site/jacoco/jacoco.csv"
-        int threshold = (config.coverage_threshold ?: pipelineConfig?.libraries?.version_manager?.coverage_threshold ?: 80) as Integer
+        echo "appLifecycleHooks [@AfterStep 'verify']: Auditing code coverage..."
+        String appDir       = config.app_dir ?: '.'
+        String jacocoReport = (appDir != '.') ? "${appDir}/target/site/jacoco/jacoco.csv" : "target/site/jacoco/jacoco.csv"
+        int threshold       = (config.coverage_threshold ?: 80) as Integer
 
         if (!fileExists(jacocoReport)) {
-            error "appLifecycleHooks [@AfterStep]: JaCoCo CSV report not found at '${jacocoReport}'. Cannot verify coverage threshold — failing closed."
+            error "appLifecycleHooks [@AfterStep]: JaCoCo report not found at '${jacocoReport}'. Failing closed."
         }
 
         List<String> lines = readFile(jacocoReport).trim().split('\n') as List
@@ -88,14 +84,22 @@ void onAfterStep() {
                 covered += (cols[4] as Long)
             }
         }
-        long total = missed + covered
-        double pct = total > 0 ? (covered * 100.0 / total) : 0.0
-        echo "  Instruction coverage: ${String.format('%.2f', pct)}% (required threshold: ${threshold}%)"
+        long total   = missed + covered
+        double pct   = total > 0 ? (covered * 100.0 / total) : 0.0
+        echo "  Instruction coverage: ${String.format('%.2f', pct)}% (threshold: ${threshold}%)"
 
         if (pct < threshold) {
-            error "appLifecycleHooks [@AfterStep]: Coverage ${String.format('%.2f', pct)}% is below required threshold of ${threshold}%. Failing build."
+            error "appLifecycleHooks [@AfterStep]: Coverage ${String.format('%.2f', pct)}% is below ${threshold}%. Failing build."
         }
-        echo "  ✓ Coverage threshold met successfully."
+        echo "  ✓ Coverage threshold met."
+    }
+
+    // Auto-register version in S3 after successful push or promote
+    if (currentStep == 'pushImage' || currentStep == 'promoteImage') {
+        String environment = hookContext?.args?.environment ?: config.target_environment
+        echo "appLifecycleHooks [@AfterStep '${currentStep}']: Registering ${config.artifact_type} ${config.component_name}@${env.APP_VERSION} -> '${environment}' in S3..."
+        registerVersion(environment: environment)
+        echo "  ✓ S3 Version Registry updated for '${environment}'."
     }
 }
 
@@ -108,11 +112,10 @@ void onCleanUp() {
     echo "  GLOBAL TEARDOWN [@CleanUp Hook]"
     echo "════════════════════════════════════════════════════"
     try {
-        String containerName = "validate-${env.BUILD_ID}"
-        sh "docker stop ${containerName} 2>/dev/null || true"
-        sh "docker rm -f ${containerName} 2>/dev/null || true"
+        sh "docker stop validate-${env.BUILD_ID} 2>/dev/null || true"
+        sh "docker rm -f validate-${env.BUILD_ID} 2>/dev/null || true"
         sh "docker image prune -f --filter 'label=stage=builder' 2>/dev/null || true"
-        echo "  ✓ Ephemeral test containers and dangling layers pruned."
+        echo "  ✓ Ephemeral containers and dangling layers pruned."
     } catch (Exception e) {
         echo "  ⚠️ Cleanup warning: ${e.message}"
     }

@@ -1,12 +1,4 @@
-// steps/readVersion.groovy
-//
-// Contract:
-//   input : <app_dir>/<version_file> (default 'application/VERSION')
-//   output: env.APP_VERSION
-//   fails : missing file, or an empty version value
-//
-// Reused by every other library that needs the application version
-// (ecr, gitops, release) — nothing else re-parses the VERSION file.
+// steps/readVersion.groovy — Reads version from configured file
 
 String call(Map args = [:]) {
     String appDir      = args.app_dir      ?: config.app_dir      ?: '.'
@@ -15,18 +7,18 @@ String call(Map args = [:]) {
     String targetFile = (appDir != '.') ? "${appDir}/${versionFile}" : versionFile
 
     if (!fileExists(targetFile)) {
-        error "readVersion: File '${targetFile}' not found."
+        error "version_manager/readVersion: Version file '${targetFile}' not found."
     }
 
     String content = readFile(file: targetFile).trim()
     String version = versionFile.endsWith('.json') ? (readJSON(text: content).version) : content
 
     if (!version?.trim()) {
-        error "readVersion: No version found in '${targetFile}'."
+        error "version_manager/readVersion: No version string found in '${targetFile}'."
     }
 
     version = version.trim()
     env.APP_VERSION = version
-    echo "readVersion: ${version} (from ${targetFile})"
+    echo "version_manager/readVersion: ${version} (from ${targetFile})"
     return version
 }

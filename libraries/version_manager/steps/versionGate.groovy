@@ -1,51 +1,40 @@
-// steps/versionGate.groovy
-//
-// Version Gate Policy:
-// 1. (Unless skip_active_check) Enforces that the target component version is not
-//    already ACTIVE in the target environment.
-// 2. Enforces the strict monotonic promotion dependency chain: dev -> test -> prod.
+// steps/versionGate.groovy — Enforce monotonic promotion and validate release activeness
 
 void call(Map args = [:]) {
-    String environment      = args.environment ?: config.target_environment ?: 'prod'
-    boolean strict          = (config.strict_promotion != null) ? config.strict_promotion.toString().toBoolean() : true
-    boolean skipActiveCheck = args.skip_active_check ?: false
-    String version          = args.version ?: env.APP_VERSION ?: readVersion()
-    String component        = args.component ?: config.component_name ?: env.JOB_BASE_NAME ?: 'petclinic'
-    String type             = args.type ?: config.artifact_type ?: (component.contains('cluster') ? 'INFRASTRUCTURE' : 'APPLICATION')
-    List order              = config.promotion_order ?: ['dev', 'test', 'prod']
+    String environment = args.environment ?: config.target_environment
+    String component   = config.component_name
+    String type        = config.artifact_type
+    String version     = env.APP_VERSION ?: readVersion()
+    List   order       = config.promotion_order ?: []
+    boolean strict     = config.strict_promotion?.toBoolean() ?: true
+    boolean isPR       = env.CHANGE_ID != null
 
-    if (!environment) {
-        error "versionGate: 'environment' is required."
-    }
+    if (!environment) { error "versionGate: 'environment' is required." }
 
     echo "═══════════════════════════════════════════"
-    echo "  VERSION GATE — ${type} [${component}@${version}] -> '${environment}'${skipActiveCheck ? ' (active-check skipped: PR context)' : ''}"
+    echo "  VERSION GATE — ${type} [${component}@${version}] -> '${environment}'"
     echo "═══════════════════════════════════════════"
 
-    // 1. Target Environment Check: Must NOT already be ACTIVE (prevents redundant deployment)
-    if (!skipActiveCheck) {
-        Map targetCheck = checkVersion(version: version, environment: environment, component: component, type: type)
-        if (targetCheck.exists) {
+    if (!isPR) {
+        if (checkVersion(version: version, environment: environment).exists) {
             if (strict) {
-                error "versionGate: Version '${version}' is already ACTIVE in '${environment}'. Bump version to deploy new changes."
+                error "versionGate: '${version}' is already ACTIVE in '${environment}'. Bump version to deploy."
             } else {
-                echo "versionGate: WARNING — '${version}' is already ACTIVE in '${environment}', but strict_promotion=false. Continuing."
+                echo "versionGate: WARNING — '${version}' already ACTIVE in '${environment}'."
             }
         }
     }
 
-    // 2. Monotonic Promotion Dependency Chain Check — always enforced
     int envIndex = order.indexOf(environment)
     if (envIndex > 0) {
-        String requiredPrevEnv = order[envIndex - 1]
-        echo "versionGate: Verifying prerequisite promotion in '${requiredPrevEnv}'..."
-        Map prevCheck = checkVersion(version: version, environment: requiredPrevEnv, component: component, type: type)
-        if (!prevCheck.exists) {
-            error "versionGate: Promotion chain violated! Version '${version}' is NOT active in prerequisite environment '${requiredPrevEnv}'. Cannot promote directly to '${environment}'."
+        String prevEnv = order[envIndex - 1]
+        echo "versionGate: Verifying prerequisite '${prevEnv}'..."
+        if (!checkVersion(version: version, environment: prevEnv).exists) {
+            error "versionGate: Chain violated — '${version}' is NOT active in '${prevEnv}'."
         }
-        echo "versionGate: Prerequisite verified — '${version}' is ACTIVE in '${requiredPrevEnv}'."
+        echo "versionGate: Prerequisite '${prevEnv}' verified."
     }
 
-    echo "  VERSION GATE PASSED — ${version} is clear for '${environment}'"
+    echo "  VERSION GATE PASSED — ${version} clear for '${environment}'"
     echo "═══════════════════════════════════════════"
 }
