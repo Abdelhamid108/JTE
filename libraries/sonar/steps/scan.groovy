@@ -1,8 +1,8 @@
 // steps/scan.groovy — Run SonarQube/SonarCloud analysis and enforce the quality gate
 
 void call() {
-    String appDir     = config.app_dir      ?: '.'
-    String mvnCmd     = config.maven_command ?: 'mvn'
+    String appDir     = config.app_dir ?: pipelineConfig.libraries?.maven?.app_dir ?: '.'
+    String mvnCmd     = config.maven_command ?: pipelineConfig.libraries?.maven?.maven_command ?: 'mvn'
     String project    = config.sonar_project
     String orgArg     = config.sonar_organization ? "-Dsonar.organization=${config.sonar_organization}" : ''
     String hostArg    = config.sonar_host_url     ? "-Dsonar.host.url=${config.sonar_host_url}"         : ''
