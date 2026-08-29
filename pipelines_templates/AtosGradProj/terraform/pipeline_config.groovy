@@ -18,6 +18,7 @@ libraries {
         softFail           = true   
         tf_vars            = "petclinic-tfvars"
         target_environment = "prod"
+        component_name     = "eks-cluster"
     }
 
     version_manager {
@@ -25,5 +26,7 @@ libraries {
         version_file       = "INFRA_VERSION"
         registry_path      = "s3://petclinic-platform-version-registry-069089526123-us-east-1-an/version-registry.json"
         target_environment = "prod"
+        component_name     = "eks-cluster"
+        artifact_type      = "INFRASTRUCTURE"
     }
 }
