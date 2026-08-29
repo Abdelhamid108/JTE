@@ -1,54 +1,64 @@
 // steps/registerVersion.groovy
 //
-// AWS auth: relies on the agent's ambient IRSA identity for 'aws s3 cp'.
-// Concurrency: wrapped in a Jenkins 'lock' so two builds promoting at the
-// same time cannot read-modify-write the same registry object and clobber
-// each other's entry (requires the Lockable Resources plugin).
+// Reads the S3 version registry, updates ACTIVE/DESTROYED state for the
+// given component, and writes it back. Retries up to 3 times with backoff
+// to handle transient S3 write conflicts from concurrent pipeline runs.
+//
+// When infrastructure is DESTROYED, all active workloads under that
+// environment are individually emitted to history with INFRASTRUCTURE_TEARDOWN
+// before their active records are cleared.
 
 void call(Map args = [:]) {
-    String version      = args.version ?: env.APP_VERSION ?: readVersion()
-    String environment  = args.environment ?: config.target_environment 
-    String type         = args.type ?: config.artifact_type 
-    String component    = args.component ?: config.component_name ?: env.JOB_BASE_NAME 
     String registryPath = args.registry_path ?: config.registry_path
-    String status       = args.status ?: 'ACTIVE'
-
     if (!registryPath) error "registerVersion: 'registry_path' must be configured."
 
-    String commitSha = env.GIT_COMMIT ?: sh(script: "git rev-parse HEAD 2>/dev/null || echo 'unknown'", returnStdout: true).trim()
-    Map record = [
-        type: type, component: component, version: version, commit_sha: commitSha,
-        timestamp: new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC')),
-        environment: environment, status: status
-    ]
+    String version     = args.version     ?: env.APP_VERSION
+    String environment = args.environment ?: config.target_environment ?: 'prod'
+    String type        = args.type        ?: 'INFRASTRUCTURE'
+    String component   = args.component   ?: config.component_name ?: env.JOB_BASE_NAME ?: 'eks-cluster'
+    String status      = args.status      ?: 'ACTIVE'
+    String commitSha   = env.GIT_COMMIT   ?: sh(script: "git rev-parse HEAD 2>/dev/null || echo 'unknown'", returnStdout: true).trim()
+    String timestamp   = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
 
-    echo "version_manager: registering ${type} [${component}: ${version}] with status '${status}' for '${environment}'..."
+    Map record = [type: type, component: component, version: version, commit_sha: commitSha,
+                  timestamp: timestamp, environment: environment, status: status]
 
-    String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
-    Map registry = [:]
-    try { registry = readJSON(text: content) } catch (Exception e) {}
+    echo "registerVersion: ${type} ${component}@${version} -> ${status} (${environment})"
 
-    registry.environments = registry.environments ?: [:]
-    def envNode = registry.environments[environment] = registry.environments[environment] ?: [:]
-    registry.history = registry.history ?: []
+    int attempt = 0
+    while (attempt < 3) {
+        attempt++
+        try {
+            String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
+            Map reg = [:]
+            try { reg = readJSON(text: content) } catch (Exception ignored) {}
 
-    if (type == 'INFRASTRUCTURE') {
-        envNode.infrastructure = record
-        // When infrastructure is destroyed, all workloads hosted in that environment are also invalidated
-        if (status == 'DESTROYED') {
-            envNode.workloads = [:]
-        }
-    } else {
-        envNode.workloads = envNode.workloads ?: [:]
-        if (status == 'DESTROYED') {
-            envNode.workloads.remove(component)
-        } else {
-            envNode.workloads[component] = record
+            reg.environments = reg.environments ?: [:]
+            Map envNode = reg.environments[environment] = reg.environments[environment] ?: [:]
+            reg.history = reg.history ?: []
+
+            if (type == 'INFRASTRUCTURE') {
+                envNode.infrastructure = record
+                if (status == 'DESTROYED' && envNode.workloads) {
+                    envNode.workloads.each { name, wl ->
+                        reg.history << (new HashMap(wl) + [status: 'DESTROYED', timestamp: timestamp, reason: 'INFRASTRUCTURE_TEARDOWN'])
+                    }
+                    envNode.workloads = [:]
+                }
+            } else {
+                envNode.workloads = envNode.workloads ?: [:]
+                if (status == 'DESTROYED') { envNode.workloads.remove(component) }
+                else                       { envNode.workloads[component] = record }
+            }
+
+            reg.history << record
+            writeJSON file: 'registry_tmp.json', json: reg, pretty: 4
+            sh "aws s3 cp registry_tmp.json '${registryPath}' && rm -f registry_tmp.json"
+            return
+
+        } catch (Exception e) {
+            if (attempt >= 3) throw e
+            sleep(attempt * 2)
         }
     }
-
-    registry.history << record 
-
-    writeJSON file: 'registry_tmp.json', json: registry, pretty: 4
-    sh "aws s3 cp registry_tmp.json '${registryPath}' && rm -f registry_tmp.json"
 }
