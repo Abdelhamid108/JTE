@@ -42,7 +42,7 @@ libraries {
     }
 
     docker {
-        install_tools      = false
+       // install_tools      = false
         container_port     = 8080
         health_check_path  = "/actuator/health"
     }
