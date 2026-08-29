@@ -10,6 +10,7 @@ libraries {
         aws_region         = "us-east-1"
         role_session_name  = "TerraformProvisioningSession"
         role_duration      = 3600
+        target_environment = "prod"
     }
 
     terraform {
