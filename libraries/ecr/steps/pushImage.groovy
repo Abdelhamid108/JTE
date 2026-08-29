@@ -1,19 +1,17 @@
-// steps/pushImage.groovy — Push the built image to ECR.
-//
-// Contract:
-//   input : env.IMAGE_URI (set by ecr/buildImage), a passing trivy/scanImage
-//   output: image pushed to ECR under its immutable version tag
-//   fails : missing IMAGE_URI, or a failed docker push
-//
-// Callers must only invoke this step after Maven, Sonar policy, the Docker
-// build, and the Trivy image scan have all succeeded — this library does
-// not itself re-check that ordering, the pipeline template does.
+// steps/pushImage.groovy — Push base image and environment tag to ECR
 
-void call() {
-    if (!env.IMAGE_URI) {
-        error "ecr/pushImage: IMAGE_URI is not set. Run ecr/buildImage first."
-    }
+void call(Map args = [:]) {
+    String environment = args.environment
+    if (!environment) { error "ecr/pushImage: 'environment' is required." }
 
-    echo "ecr/pushImage: pushing ${env.IMAGE_URI}"
-    sh "docker push ${env.IMAGE_URI}"
+    String baseImage = "${env.ECR_REGISTRY}/${config.ecr_repository}:${env.APP_VERSION}"
+    String envImage  = "${env.ECR_REGISTRY}/${config.ecr_repository}:${environment}-${env.APP_VERSION}"
+
+    echo "ecr/pushImage: Pushing ${baseImage} and ${envImage}..."
+    sh """
+        docker push ${baseImage}
+        docker tag  ${baseImage} ${envImage}
+        docker push ${envImage}
+    """
+    echo "ecr/pushImage: Done."
 }
