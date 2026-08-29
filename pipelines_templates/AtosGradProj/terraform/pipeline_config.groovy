@@ -14,7 +14,7 @@ libraries {
 
     terraform {
         infra_dir          = "."
-        install_tools      = false
+        install_tools      = true
         softFail           = true   
         tf_vars            = "petclinic-tfvars"
         target_environment = "prod"

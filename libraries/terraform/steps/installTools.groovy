@@ -18,8 +18,9 @@ void call() {
             python3 -m ensurepip --upgrade 2>/dev/null || \
                 curl -fsSL https://bootstrap.pypa.io/get-pip.py | python3 -
         fi
-        # Always upgrade pip itself to avoid outdated-installer warnings
-        python3 -m pip install --user --quiet --upgrade pip
+        # Upgrade pip — use --break-system-packages for Debian bookworm (PEP 668)
+        python3 -m pip install --quiet --upgrade pip --break-system-packages 2>/dev/null || \
+            python3 -m pip install --user --quiet --upgrade pip
         export PATH="\${HOME}/.local/bin:\$PATH"
         echo "[OK] pip \$(pip3 --version)"
 
@@ -37,7 +38,8 @@ void call() {
         # ── 2. Checkov ─────────────────────────────────────────────────────
         if ! command -v checkov >/dev/null 2>&1; then
             echo "installTools: Checkov not found — installing via pip3..."
-            pip3 install --user --quiet checkov
+            pip3 install --quiet checkov --break-system-packages 2>/dev/null || \
+                pip3 install --user --quiet checkov
         fi
         export PATH="\${HOME}/.local/bin:\$PATH"
         echo "[OK] checkov \$(checkov --version 2>&1 | head -1)"
