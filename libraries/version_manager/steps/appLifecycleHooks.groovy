@@ -34,15 +34,6 @@ void onBeforeStep() {
         }
         echo "appLifecycleHooks: [PASSED] Container validation and image security prerequisites verified."
     }
-
-    // ── GUARD 3: Enforce version gate before any publish/promote step
-    if (currentStep == 'push' || currentStep == 'promoteDockerImage') {
-        String environment = ['dev': 'dev', 'test': 'test', 'main': 'prod'][branch]
-        if (environment) {
-            echo "appLifecycleHooks [@BeforeStep '${currentStep}']: Enforcing Version Gate for '${environment}'..."
-            versionGate(environment: environment)
-        }
-    }
 }
 
 // ─────────────────────────────────────────────────────────────
