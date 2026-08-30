@@ -17,5 +17,6 @@ void call() {
         }
     }
 
-    echo "sonar/scan: SonarQube analysis completed successfully."
+    env.SONAR_QUALITY_GATE_STATUS = 'OK'
+    echo "sonar/scan: SonarQube analysis completed successfully (quality gate OK)."
 }
