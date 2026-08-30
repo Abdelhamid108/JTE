@@ -22,11 +22,11 @@ void call(Map args = [:]) {
             try {
                 String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
                 Map reg = [:]
-                try { reg = readJSON(text: content) } catch (Exception ignored) {}
+                try { reg = readJSON(text: content, returnPojo: true) ?: [:] } catch (Exception ignored) {}
 
-                reg.environments = reg.environments ?: [:]
-                Map envNode = reg.environments[environment] = reg.environments[environment] ?: [:]
-                reg.history = reg.history ?: []
+                reg.environments = (reg.environments instanceof Map) ? reg.environments : [:]
+                Map envNode = (reg.environments[environment] instanceof Map) ? reg.environments[environment] : [:]
+                reg.history = (reg.history instanceof List) ? reg.history : []
 
                 if (type == 'INFRASTRUCTURE') {
                     envNode.infrastructure = record
@@ -37,14 +37,16 @@ void call(Map args = [:]) {
                         envNode.workloads = [:]
                     }
                 } else {
-                    envNode.workloads = envNode.workloads ?: [:]
+                    Map workloadsMap = (envNode.workloads instanceof Map) ? envNode.workloads : [:]
                     if (status == 'DESTROYED') {
-                        envNode.workloads.remove(component)
+                        workloadsMap.remove(component)
                     } else {
-                        envNode.workloads[component] = record
+                        workloadsMap[component] = record
                     }
+                    envNode['workloads'] = workloadsMap
                 }
 
+                reg.environments[environment] = envNode
                 reg.history << record
                 writeJSON file: 'registry_tmp.json', json: reg, pretty: 4
                 sh "aws s3 cp registry_tmp.json '${registryPath}' && rm -f registry_tmp.json"

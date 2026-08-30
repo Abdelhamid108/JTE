@@ -9,9 +9,9 @@ Map call(Map args = [:]) {
 
     String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
     Map reg = [:]
-    try { reg = readJSON(text: content) } catch (Exception ignored) {}
+    try { reg = readJSON(text: content, returnPojo: true) ?: [:] } catch (Exception ignored) {}
 
-    Map envNode   = reg.environments ? reg.environments[environment] : null
+    Map envNode   = (reg.environments instanceof Map) ? reg.environments[environment] : null
     Map candidate = null
 
     if (envNode) {
