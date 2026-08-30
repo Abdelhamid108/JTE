@@ -4,10 +4,10 @@ String call(Map args = [:]) {
     String dockerFile = args.dockerfile ?: config.dockerfile_path ?: config.docker_file_name ?: 'Dockerfile'
     String context    = args.build_context ?: config.build_context ?: config.docker_file_dir ?: '.'
 
-    String ecrRepo    = pipelineConfig.libraries?.ecr?.ecr_repository
-    String imageName  = args.image_name ?: config.image_name ?: (env.ECR_REGISTRY && ecrRepo ? "${env.ECR_REGISTRY}/${ecrRepo}" : (ecrRepo ?: "app"))
-    String tag        = args.tag ?: config.image_tag ?: env.APP_VERSION ?: "build-${env.BUILD_ID}"
-    String fullImage  = "${imageName}:${tag}"
+    String registryURL = args.registry_url ?: config.registry_url
+    String imageName   = args.image_name ?: config.image_name
+    String tag         = args.tag ?: env.APP_VERSION 
+    String fullImage   = "${registryURL}/${imageName}:${tag}"
 
     echo "docker/buildImage: Building ${fullImage} (Dockerfile: ${dockerFile}, context: ${context})"
 
