@@ -40,14 +40,15 @@ libraries {
     docker {
         dockerfile_path    = "application/Dockerfile"
         build_context      = "application"
+        ecr_repository     = "petclinic-project/petclinic-app"
         container_port     = 8080
         health_check_path  = "/actuator/health"
     }
 
     ecr {
-        aws_region         = "us-east-1"
-        ecr_repository     = "petclinic-project/petclinitc-app"
-    }   
+        aws_region   = "us-east-1"
+        ecr_registry = "069089526123.dkr.ecr.us-east-1.amazonaws.com"
+    }
     
     trivy {
         severity_threshold = "CRITICAL,HIGH"

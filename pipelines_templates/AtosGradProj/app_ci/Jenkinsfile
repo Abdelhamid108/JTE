@@ -80,8 +80,12 @@ pipeline {
             when { branch 'dev'; not { changeRequest() } }
             steps {
                 assumeRole {
-                    login()
-                    pushImage(environment: 'dev')
+                    login()  // ecr: AWS credential handshake
+                    List tags = [
+                        "${env.ECR_REGISTRY}/${pipelineConfig.libraries.docker.ecr_repository}:${env.APP_VERSION}",
+                        "${env.ECR_REGISTRY}/${pipelineConfig.libraries.docker.ecr_repository}:dev-${env.APP_VERSION}"
+                    ]
+                    push(tags)
                 }
             }
         }
@@ -102,8 +106,11 @@ pipeline {
             when { branch 'test'; not { changeRequest() } }
             steps {
                 assumeRole {
-                    login()
-                    promoteImage(environment: 'test')
+                    login()  // ecr: AWS credential handshake
+                    promoteDockerImage(
+                        source_image: "${env.ECR_REGISTRY}/${pipelineConfig.libraries.docker.ecr_repository}:${env.APP_VERSION}",
+                        target_image: "${env.ECR_REGISTRY}/${pipelineConfig.libraries.docker.ecr_repository}:test-${env.APP_VERSION}"
+                    )
                 }
             }
         }
@@ -138,8 +145,11 @@ pipeline {
             when { branch 'main'; not { changeRequest() } }
             steps {
                 assumeRole {
-                    login()
-                    promoteImage(environment: 'prod')
+                    login()  // ecr: AWS credential handshake
+                    promoteDockerImage(
+                        source_image: "${env.ECR_REGISTRY}/${pipelineConfig.libraries.docker.ecr_repository}:${env.APP_VERSION}",
+                        target_image: "${env.ECR_REGISTRY}/${pipelineConfig.libraries.docker.ecr_repository}:prod-${env.APP_VERSION}"
+                    )
                 }
                 createTag()
             }
