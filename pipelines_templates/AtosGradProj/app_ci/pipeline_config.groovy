@@ -4,6 +4,14 @@ pipeline_template = 'app_ci/Jenkinsfile'
 
 libraries {
 
+    aws {
+        aws_credentials_id = "petclinic-aws-credentials"
+        aws_role_arn       = "arn:aws:iam::069089526123:role/JenkinsTerraformRole"
+        aws_region         = "us-east-1"
+        role_session_name  = "PetClinicAppSession"
+        role_duration      = 3600
+    }
+
     version_manager {
         app_dir            = "application"
         version_file       = "VERSION"

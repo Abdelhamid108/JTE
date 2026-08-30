@@ -68,15 +68,21 @@ pipeline {
         stage('Version Gate (DEV)') {
             agent { label 'master' }
             when { branch 'dev'; not { changeRequest() } }
-            steps { versionGate(environment: 'dev') }
+            steps {
+                assumeRole {
+                    versionGate(environment: 'dev')
+                }
+            }
         }
 
         stage('Push Image (DEV)') {
             agent { label 'master' }
             when { branch 'dev'; not { changeRequest() } }
             steps {
-                login()
-                pushImage(environment: 'dev')
+                assumeRole {
+                    login()
+                    pushImage(environment: 'dev')
+                }
             }
         }
 
@@ -85,15 +91,21 @@ pipeline {
             agent { label 'master' }
             when { branch 'test'; not { changeRequest() } }
             steps {
-                login()
-                versionGate(environment: 'test')
+                assumeRole {
+                    versionGate(environment: 'test')
+                }
             }
         }
 
         stage('Promote Image (TEST)') {
             agent { label 'master' }
             when { branch 'test'; not { changeRequest() } }
-            steps { promoteImage(environment: 'test') }
+            steps {
+                assumeRole {
+                    login()
+                    promoteImage(environment: 'test')
+                }
+            }
         }
 
         // ── MAIN BRANCH: Production Release ────────────────────
@@ -101,8 +113,9 @@ pipeline {
             agent { label 'master' }
             when { branch 'main'; not { changeRequest() } }
             steps {
-                login()
-                versionGate(environment: 'prod')
+                assumeRole {
+                    versionGate(environment: 'prod')
+                }
             }
         }
 
@@ -124,7 +137,10 @@ pipeline {
             agent { label 'master' }
             when { branch 'main'; not { changeRequest() } }
             steps {
-                promoteImage(environment: 'prod')
+                assumeRole {
+                    login()
+                    promoteImage(environment: 'prod')
+                }
                 createTag()
             }
         }
