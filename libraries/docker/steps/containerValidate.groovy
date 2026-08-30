@@ -43,6 +43,7 @@ void call(Map args = [:]) {
             error "containerValidate: Health check failed at '${healthUrl}'.\n--- Container Logs ---\n${logs}"
         }
 
+        env.STAGE_CONTAINER_VALIDATE_PASSED = 'true'
         echo "  CONTAINER SMOKE TEST PASSED — Application is healthy."
 
     } finally {

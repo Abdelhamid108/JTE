@@ -17,6 +17,6 @@ void call() {
         }
     }
 
-    env.SONAR_QUALITY_GATE_STATUS = 'OK'
-    echo "sonar/scan: SonarQube analysis completed successfully (quality gate OK)."
+    env.STAGE_SONAR_PASSED = 'true'
+    echo "sonar/scan: SonarQube analysis completed successfully."
 }

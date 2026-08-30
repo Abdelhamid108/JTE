@@ -8,4 +8,5 @@ void call() {
     dir(appDir) {
         sh "${mvnCmd} -B verify"
     }
+    env.STAGE_TEST_PASSED = 'true'
 }

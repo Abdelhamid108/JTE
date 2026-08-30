@@ -30,5 +30,6 @@ void call() {
         error "trivy/scanFilesystem: Trivy failed to complete successfully."
     }
 
+    env.STAGE_FS_SCAN_PASSED = 'true'
     echo "trivy/scanFilesystem: scan completed. Report archived as ${reportFile}."
 }

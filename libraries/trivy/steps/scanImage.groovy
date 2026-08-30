@@ -34,5 +34,6 @@ void call(Map args = [:]) {
         error "trivy/scanImage: Vulnerabilities found exceeding threshold (${severity})."
     }
 
+    env.STAGE_IMAGE_SCAN_PASSED = 'true'
     echo "trivy/scanImage: Scan passed cleanly."
 }

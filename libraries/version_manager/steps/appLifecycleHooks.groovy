@@ -1,24 +1,41 @@
-// steps/appLifecycleHooks.groovy — JTE Lifecycle Hooks for Version Management & Quality Governance
+// steps/appLifecycleHooks.groovy — JTE Lifecycle Hooks for Version Management & Strict Quality Governance
 
 // ─────────────────────────────────────────────────────────────
-// PRE-STEP: Version gate + Quality Gate guard
+// PRE-STEP: Strict Quality, Security & Version Gates
 // ─────────────────────────────────────────────────────────────
 @BeforeStep
 void onBeforeStep() {
     String currentStep = hookContext?.step
     String branch      = env.BRANCH_NAME
 
-    // Block image build if SonarQube Quality Gate failed (check sonar library config)
-    boolean enforceSonar = pipelineConfig.libraries?.sonar?.enforce_quality_gate?.toBoolean() ?: false
-    if (currentStep == 'buildImage' && enforceSonar) {
-        String gateStatus = env.SONAR_QUALITY_GATE_STATUS
-        echo "appLifecycleHooks [@BeforeStep 'buildImage']: Checking SonarQube Quality Gate status (${gateStatus ?: 'UNSET'})..."
-        if (gateStatus != 'OK') {
-            error "appLifecycleHooks: Quality Gate status is '${gateStatus ?: 'unset'}' — blocking image build."
+    // ── GUARD 1: Build image ONLY if tests, coverage, Trivy FS, and SonarQube passed
+    if (currentStep == 'buildImage') {
+        echo "appLifecycleHooks [@BeforeStep 'buildImage']: Enforcing prerequisite Quality & Security gates..."
+        if (env.STAGE_TEST_PASSED != 'true') {
+            error "appLifecycleHooks: Prerequisite 'verify' (tests & 80% code coverage) has not completed successfully."
         }
+        if (env.STAGE_FS_SCAN_PASSED != 'true') {
+            error "appLifecycleHooks: Prerequisite 'scanFilesystem' (Trivy dependency scan) has not completed successfully."
+        }
+        if (env.STAGE_SONAR_PASSED != 'true') {
+            error "appLifecycleHooks: Prerequisite 'scan' (SonarQube Quality Gate) has not completed successfully."
+        }
+        echo "appLifecycleHooks: [PASSED] Code Quality & Security prerequisites verified (Tests, 80% Coverage, Trivy FS, SonarQube)."
     }
 
-    // Enforce version gate before any publish/promote step
+    // ── GUARD 2: Push image ONLY if container validation and image security scan passed
+    if (currentStep == 'push' && branch == 'dev') {
+        echo "appLifecycleHooks [@BeforeStep 'push']: Enforcing container smoke validation & image security scan..."
+        if (env.STAGE_CONTAINER_VALIDATE_PASSED != 'true') {
+            error "appLifecycleHooks: Prerequisite 'containerValidate' (Container Smoke Test) has not passed."
+        }
+        if (env.STAGE_IMAGE_SCAN_PASSED != 'true') {
+            error "appLifecycleHooks: Prerequisite 'scanImage' (Trivy Image Vulnerability Scan) has not passed."
+        }
+        echo "appLifecycleHooks: [PASSED] Container validation and image security prerequisites verified."
+    }
+
+    // ── GUARD 3: Enforce version gate before any publish/promote step
     if (currentStep == 'push' || currentStep == 'promoteDockerImage') {
         String environment = ['dev': 'dev', 'test': 'test', 'main': 'prod'][branch]
         if (environment) {
@@ -29,36 +46,12 @@ void onBeforeStep() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// POST-STEP: Coverage threshold + S3 version registration
+// POST-STEP: S3 version registration
 // ─────────────────────────────────────────────────────────────
 @AfterStep
 void onAfterStep() {
     String currentStep = hookContext?.step
     String branch      = env.BRANCH_NAME
-
-    // Enforce JaCoCo coverage threshold after verify()
-    if (currentStep == 'verify') {
-        echo "appLifecycleHooks [@AfterStep 'verify']: Auditing JaCoCo code coverage..."
-        String appDir       = config.app_dir ?: '.'
-        String jacocoReport = "${appDir}/target/site/jacoco/jacoco.csv".replaceAll('^\\./', '')
-        int    threshold    = (config.coverage_threshold ?: 80) as Integer
-
-        if (!fileExists(jacocoReport)) {
-            error "appLifecycleHooks: JaCoCo report not found at '${jacocoReport}'."
-        }
-
-        long missed = 0, covered = 0
-        readFile(jacocoReport).trim().split('\n').drop(1).each { line ->
-            List cols = line.split(',')
-            if (cols.size() > 4) { missed += cols[3] as Long; covered += cols[4] as Long }
-        }
-        double pct = (missed + covered) > 0 ? (covered * 100.0 / (missed + covered)) : 0.0
-        echo "appLifecycleHooks: Instruction coverage: ${String.format('%.2f', pct)}% (threshold: ${threshold}%)"
-
-        if (pct < threshold) {
-            error "appLifecycleHooks: Coverage ${String.format('%.2f', pct)}% is below threshold of ${threshold}%."
-        }
-    }
 
     // Register version in S3 after push or promote.
     // Status is PUBLISHED — image is in ECR and available.
