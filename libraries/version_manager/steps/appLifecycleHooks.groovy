@@ -50,6 +50,11 @@ void onBeforeStep() {
 // ─────────────────────────────────────────────────────────────
 @AfterStep
 void onAfterStep() {
+    if (hookContext?.exceptionThrown) {
+        echo "appLifecycleHooks [@AfterStep]: Step '${hookContext?.step}' threw an exception/failed — skipping S3 version registration."
+        return
+    }
+
     String currentStep = hookContext?.step
     String branch      = env.BRANCH_NAME
 

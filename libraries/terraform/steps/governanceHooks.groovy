@@ -37,6 +37,11 @@ void onBeforeStep() {
 
 @AfterStep
 void onAfterStep() {
+    if (hookContext?.exceptionThrown) {
+        echo "terraform [@AfterStep]: Step '${hookContext?.step}' threw an exception/failed — skipping version registration."
+        return
+    }
+
     String currentStep = hookContext?.step
 
     if (currentStep == 'deploy') {
