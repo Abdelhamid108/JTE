@@ -54,10 +54,14 @@ void onAfterStep() {
         }
     }
 
-    // Register version in S3 after push or promote
+    // Register version in S3 after push or promote.
+    // Status is PUBLISHED — image is in ECR and available.
+    // Argo CD Notifications will update status to ACTIVE via webhook once the app is healthy.
     if (currentStep == 'push' || currentStep == 'promoteDockerImage') {
-        String environment = env.BRANCH_NAME
-        echo "appLifecycleHooks: Registering ${config.component_name}@${env.APP_VERSION} -> '${environment}' in S3..."
-        registerVersion(environment: environment)
+        String environment = ['dev': 'dev', 'test': 'test', 'main': 'prod'][env.BRANCH_NAME]
+        if (environment) {
+            echo "appLifecycleHooks: Registering ${config.component_name}@${env.APP_VERSION} -> '${environment}' [PUBLISHED]..."
+            registerVersion(environment: environment, status: 'PUBLISHED')
+        }
     }
 }

@@ -22,11 +22,15 @@ Map call(Map args = [:]) {
         }
     }
 
-    Map activeRecord = (candidate?.version == version && candidate?.status == 'ACTIVE') ? candidate : null
+    // ACTIVE  = Argo CD confirmed the app is healthy
+    // PUBLISHED = image pushed to ECR, Argo CD confirmation pending
+    // Both are valid prerequisites for promotion
+    List validStatuses = ['ACTIVE', 'PUBLISHED']
+    Map activeRecord = (candidate?.version == version && validStatuses.contains(candidate?.status)) ? candidate : null
 
     echo activeRecord
-        ? "checkVersion: ${version} is ACTIVE in ${environment}."
-        : "checkVersion: ${version} is not active in ${environment}. Clear to proceed."
+        ? "checkVersion: ${version} is ${activeRecord.status} in ${environment}."
+        : "checkVersion: ${version} is not published in ${environment}. Clear to proceed."
 
     return [exists: activeRecord != null, record: activeRecord]
 }
