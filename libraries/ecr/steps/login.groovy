@@ -6,7 +6,9 @@ void call() {
     String region   = config.aws_region
 
     echo "ecr/login: Authenticating Docker against ${registry}..."
-    sh "aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}"
+    retry(3) {
+        sh "aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}"
+    }
 
     env.ECR_REGISTRY = registry
     echo "ecr/login: Done. ECR_REGISTRY=${registry}"
