@@ -50,8 +50,10 @@ void onAfterStep() {
     String currentStep = hookContext?.step
     String branch      = env.BRANCH_NAME
 
-    // ── EARLY FAIL-FAST: Enforce version gate immediately after reading the version
-    if (currentStep == 'readVersion') {
+    // ── EARLY FAIL-FAST: Enforce version gate immediately after reading the version.
+    // Skip for destroy runs — a version must already be ACTIVE to be destroyed,
+    // so the gate would always block teardown incorrectly.
+    if (currentStep == 'readVersion' && params.ACTION != 'destroy') {
         String environment = ['dev': 'dev', 'test': 'test', 'main': 'prod'][branch]
         if (environment) {
             echo "appLifecycleHooks [@AfterStep 'readVersion']: Early fail-fast — Enforcing Version Gate for '${environment}'..."
