@@ -48,7 +48,6 @@ pipeline {
             agent { label 'master' }
             when { anyOf { branch 'dev'; changeRequest(target: 'dev') } }
             steps {
-                login()
                 buildImage()
             }
         }
@@ -75,7 +74,10 @@ pipeline {
         stage('Push Image (DEV)') {
             agent { label 'master' }
             when { branch 'dev'; not { changeRequest() } }
-            steps { pushImage(environment: 'dev') }
+            steps {
+                login()
+                pushImage(environment: 'dev')
+            }
         }
 
         // ── TEST BRANCH: Promote ────────────────────────────────
