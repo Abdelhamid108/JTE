@@ -81,11 +81,9 @@ pipeline {
             steps {
                 assumeRole {
                     login()  // ecr: AWS credential handshake
-                    String reg  = pipelineConfig.libraries.docker.registry_url
-                    String repo = pipelineConfig.libraries.docker.image_name
                     push([
-                        "${reg}/${repo}:${env.APP_VERSION}",
-                        "${reg}/${repo}:dev-${env.APP_VERSION}"
+                        "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:${env.APP_VERSION}",
+                        "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:dev-${env.APP_VERSION}"
                     ])
                 }
             }
@@ -108,11 +106,9 @@ pipeline {
             steps {
                 assumeRole {
                     login()  // ecr: AWS credential handshake
-                    String reg  = pipelineConfig.libraries.docker.registry_url
-                    String repo = pipelineConfig.libraries.docker.image_name
                     promoteDockerImage(
-                        source_image: "${reg}/${repo}:${env.APP_VERSION}",
-                        target_image: "${reg}/${repo}:test-${env.APP_VERSION}"
+                        source_image: "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:${env.APP_VERSION}",
+                        target_image: "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:test-${env.APP_VERSION}"
                     )
                 }
             }
@@ -149,11 +145,9 @@ pipeline {
             steps {
                 assumeRole {
                     login()  // ecr: AWS credential handshake
-                    String reg  = pipelineConfig.libraries.docker.registry_url
-                    String repo = pipelineConfig.libraries.docker.image_name
                     promoteDockerImage(
-                        source_image: "${reg}/${repo}:${env.APP_VERSION}",
-                        target_image: "${reg}/${repo}:prod-${env.APP_VERSION}"
+                        source_image: "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:${env.APP_VERSION}",
+                        target_image: "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:prod-${env.APP_VERSION}"
                     )
                 }
                 createTag()
