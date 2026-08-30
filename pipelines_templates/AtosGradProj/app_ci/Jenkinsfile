@@ -80,11 +80,8 @@ pipeline {
             when { branch 'dev'; not { changeRequest() } }
             steps {
                 assumeRole {
-                    login()  // ecr: AWS credential handshake
-                    push([
-                        "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:${env.APP_VERSION}",
-                        "${pipelineConfig.libraries.docker.registry_url}/${pipelineConfig.libraries.docker.image_name}:dev-${env.APP_VERSION}"
-                    ])
+                    login()   // ecr: AWS credential handshake
+                    push(tag())
                 }
             }
         }
