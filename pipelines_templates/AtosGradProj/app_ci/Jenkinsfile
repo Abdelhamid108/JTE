@@ -20,7 +20,9 @@ pipeline {
             agent { label 'master' }
             steps {
                 checkout scm
-                readVersion()
+                assumeRole {
+                    readVersion()
+                }
             }
         }
 

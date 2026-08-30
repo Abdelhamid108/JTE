@@ -25,7 +25,9 @@ pipeline {
             steps {
                 checkoutCode()
                 script {
-                    readVersion()
+                    assumeRole {
+                        readVersion()
+                    }
                     echo "Version: ${env.APP_VERSION} | Action: ${params.ACTION} | Branch: ${env.BRANCH_NAME}"
                 }
             }

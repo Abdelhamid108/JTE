@@ -8,6 +8,7 @@ Map call(Map args = [:]) {
     String type         = args.type         ?: config.artifact_type
 
     String content = sh(script: "aws s3 cp '${registryPath}' - 2>/dev/null || echo '{}'", returnStdout: true).trim()
+
     Map reg = [:]
     try { reg = readJSON(text: content, returnPojo: true) ?: [:] } catch (Exception ignored) {}
 
