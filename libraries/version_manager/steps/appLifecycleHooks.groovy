@@ -58,6 +58,15 @@ void onAfterStep() {
     String currentStep = hookContext?.step
     String branch      = env.BRANCH_NAME
 
+    // ── EARLY FAIL-FAST: Enforce version gate immediately after reading the version
+    if (currentStep == 'readVersion') {
+        String environment = ['dev': 'dev', 'test': 'test', 'main': 'prod'][branch]
+        if (environment) {
+            echo "appLifecycleHooks [@AfterStep 'readVersion']: Early fail-fast — Enforcing Version Gate for '${environment}'..."
+            versionGate(environment: environment)
+        }
+    }
+
     // Register version in S3 after push or promote.
     // Status is PUBLISHED — image is in ECR and available.
     // Argo CD Notifications will update status to ACTIVE via webhook once the app is healthy.
