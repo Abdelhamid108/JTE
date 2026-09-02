@@ -26,13 +26,23 @@ pipeline {
 
         stage('Trivy FS Scan') {
             agent { label 'master' }
-            when { anyOf { branch 'main', changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB' }}
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
+                }
+            }
             steps { scanFilesystem() }
         }
 
         stage('Compile') {
             agent { label 'master' }
-            when { anyOf { branch 'main', changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB' } }
+            when {
+                anyOf {
+                    branch 'main'
+                    changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
+                }
+            }
             steps { compileApp() }
         }
 
