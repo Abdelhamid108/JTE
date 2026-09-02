@@ -23,4 +23,5 @@ fields {
 steps {
     validateVersion
     createTag
+    getGitVersion
 }
