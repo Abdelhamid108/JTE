@@ -16,6 +16,7 @@ fields {
 }
 
 steps {
+    dockerHooks
     dockerLogin
     logout
     buildImage

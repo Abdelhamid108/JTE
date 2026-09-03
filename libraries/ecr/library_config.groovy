@@ -9,5 +9,8 @@ fields {
 }
 
 steps {
+    ecrHooks
     login
+    imageExists
+    retagImage
 }
