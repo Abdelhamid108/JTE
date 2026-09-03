@@ -18,11 +18,12 @@ void call(Map args = [:]) {
     echo "trivy/scanImage: Scanning ${image} (severity>=${severity})"
     int status = sh(
         script: """
+            set -o pipefail
             trivy image \\
                 --timeout ${timeout} \\
                 --severity ${severity} \\
                 --exit-code ${exitCode} \\
-                ${image} | tee ${reportFile}
+                ${image} 2>&1 | tee ${reportFile}
         """,
         returnStatus: true
     )

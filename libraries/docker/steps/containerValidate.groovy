@@ -20,9 +20,14 @@ void call(Map args = [:]) {
         sh "docker run -d --name ${containerName} -p 0:${containerPort} ${image}"
 
         String hostPort = sh(
-            script: "docker port ${containerName} ${containerPort}/tcp | head -n 1 | awk -F: '{print \$NF}'",
+            script: "set -o pipefail; docker port ${containerName} ${containerPort}/tcp | head -n 1 | awk -F: '{print \$NF}'",
             returnStdout: true
         ).trim()
+
+        if (!hostPort) {
+            String logs = sh(script: "docker logs ${containerName} 2>&1 || true", returnStdout: true).trim()
+            error "docker/containerValidate: Container failed to expose port ${containerPort} or crashed on startup.\n--- Container Logs ---\n${logs}"
+        }
 
         String healthUrl = "http://localhost:${hostPort}${healthPath}"
         echo "  Health Endpoint: ${healthUrl} (host port ${hostPort} -> container port ${containerPort})"

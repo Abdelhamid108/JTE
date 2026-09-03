@@ -7,7 +7,7 @@ void call() {
 
     echo "ecr/login: Authenticating Docker against ${registry}..."
     retry(3) {
-        sh "aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}"
+        sh "set -o pipefail; aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}"
     }
 
     env.ECR_REGISTRY = registry
