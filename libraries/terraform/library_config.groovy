@@ -20,7 +20,6 @@ fields {
 }
 
 steps {
-    governanceHooks
     checkoutCode
     installTools
     init

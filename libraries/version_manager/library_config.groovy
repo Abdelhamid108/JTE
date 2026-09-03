@@ -18,7 +18,6 @@ fields {
 }
 
 steps {
-    appLifecycleHooks
     checkVersion
     promoteVersion
     readVersion

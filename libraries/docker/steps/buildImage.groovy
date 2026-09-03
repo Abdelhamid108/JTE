@@ -12,9 +12,9 @@ String call(Map args = [:]) {
     echo "docker/buildImage: Building ${fullImage} (Dockerfile: ${dockerFile}, context: ${context})"
 
     if (context != '.') {
-        sh "docker build -f ${dockerFile} -t ${fullImage} ${context}"
+        sh "docker build --pull -f ${dockerFile} -t ${fullImage} ${context}"
     } else {
-        sh "docker build -f ${dockerFile} -t ${fullImage} ."
+        sh "docker build --pull -f ${dockerFile} -t ${fullImage} ."
     }
 
     env.IMAGE_URI      = fullImage
