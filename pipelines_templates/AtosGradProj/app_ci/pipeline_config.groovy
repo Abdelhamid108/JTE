@@ -38,12 +38,13 @@ libraries {
     }
 
     docker {
-        dockerfile_path = "application/Dockerfile"
-        build_context   = "application"
-        registry_url    = "069089526123.dkr.ecr.us-east-1.amazonaws.com"
-        image_name      = "atos-petclinic-app"
-        container_port  = 8080
-        health_check_path = "/actuator/health"
+        dockerfile_path       = "application/Dockerfile"
+        build_context         = "application"
+        registry_url          = "069089526123.dkr.ecr.us-east-1.amazonaws.com"
+        image_name            = "atos-petclinic-app"
+        container_port        = 8080
+        health_check_path     = "/actuator/health"
+        validate_wait_seconds = 120
     }
 
     ecr {
