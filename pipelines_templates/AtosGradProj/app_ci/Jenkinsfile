@@ -33,12 +33,12 @@ pipeline {
                     }
                 }
 
-                stage('Trivy FS Scan') {
-                    steps { scanFilesystem() }
-                }
-
                 stage('Compile') {
                     steps { compileApp() }
+                }
+
+                stage('Trivy FS Scan') {
+                    steps { scanFilesystem() }
                 }
 
                 stage('Unit Test') {

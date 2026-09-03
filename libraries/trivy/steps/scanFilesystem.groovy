@@ -12,14 +12,14 @@ void call() {
     echo "trivy/scanFilesystem: scanning '${appDir}' (severity>=${severity})"
     int status = sh(
         script: """
+            set -o pipefail
             trivy fs \\
                 --timeout ${timeout} \\
                 --severity ${severity} \\
                 --exit-code ${exitCode} \\
                 --format ${format} \\
                 ${ignoreFlag} \\
-                -o ${reportFile} \\
-                ${appDir}
+                ${appDir} 2>&1 | tee ${reportFile}
         """,
         returnStatus: true
     )
