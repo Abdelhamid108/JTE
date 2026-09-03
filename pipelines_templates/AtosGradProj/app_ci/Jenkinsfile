@@ -67,7 +67,7 @@ pipeline {
                         }
                     }
                     steps {
-                        push("dev-${env.GIT_SHORT_SHA}")
+                        push("dev-${env.GIT_SHORT_SHA}".toString())
                         sh "echo 'Deployed dev-${env.GIT_SHORT_SHA} to DEV environment via Argo CD.'"
                     }
                 }
