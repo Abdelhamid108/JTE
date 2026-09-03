@@ -11,6 +11,18 @@ void validateConfig() {
     echo "docker [@Validate]: config OK — registry='${config.registry_url}', image='${config.image_name}'"
 }
 
+
+@AfterStep
+void onAfterStep() {
+    String currentStep = hookContext?.step
+
+    if (currentStep == 'buildImage') {
+        echo "docker [@AfterStep 'buildImage']: Enforcing Container Smoke Validation & Image Security Scan..."
+        containerValidate()
+        scanImage()
+    }
+}
+
 @CleanUp
 void onCleanUp() {
     echo "docker [@CleanUp]: Purging build workspace and cleaning up..."
@@ -20,3 +32,4 @@ void onCleanUp() {
         echo "docker [@CleanUp]: Warning during cleanWs: ${e.message}"
     }
 }
+
