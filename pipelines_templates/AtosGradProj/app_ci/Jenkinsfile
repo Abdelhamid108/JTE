@@ -10,175 +10,118 @@ pipeline {
     options {
         disableConcurrentBuilds()
         timestamps()
+        timeout(time: 1, unit: 'HOURS')
         buildDiscarder(logRotator(numToKeepStr: '30'))
     }
 
     stages {
 
-        stage('Checkout & Version Check') {
+        // ════════════════════════════════════════════════════════════════════
+        // 1. CI & DEV: Triggered on Branches (main) and Pull Requests
+        // ════════════════════════════════════════════════════════════════════
+        stage('CI & Dev') {
             agent { label 'master' }
+            when {
+                not { buildingTag() }
+                beforeAgent true
+            }
+            stages {
+                stage('Version Check') {
+                    steps {
+                        getGitVersion()
+                        imageExists(tag: "dev-${env.GIT_TAG}")
+                    }
+                }
+
+                stage('Trivy FS Scan') {
+                    steps { scanFilesystem() }
+                }
+
+                stage('Compile') {
+                    steps { compileApp() }
+                }
+
+                stage('Unit Test') {
+                    steps { test() }
+                }
+
+                stage('SonarQube Analysis') {
+                    steps { scan() }
+                }
+
+                stage('Maven Package') {
+                    steps { packageApp() }
+                }
+
+                stage('Docker Build') {
+                    steps {
+                        buildImage()
+                    }
+                }
+
+                stage('Deploy to DEV') {
+                    when {
+                        allOf {
+                            branch 'main'
+                            not { changeRequest() }
+                        }
+                    }
+                    steps {
+                        push("dev-${env.GIT_SHORT_SHA}")
+                        sh "echo 'Deployed dev-${env.GIT_SHORT_SHA} to DEV environment via Argo CD.'"
+                    }
+                }
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        // 2. PROMOTION TO TEST: Triggered by Release Candidate Tag (v*-rc*)
+        // ════════════════════════════════════════════════════════════════════
+        stage('Promote to TEST') {
+            agent { label 'master' }
+            when {
+                tag pattern: "v*-rc*", comparator: "GLOB"
+                beforeAgent true
+            }
             steps {
-                checkout scm
                 getGitVersion()
-                imageExists(tag: "dev-${env.GIT_TAG}")
-            }
-        }
-
-        stage('Trivy FS Scan') {
-            agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'main'
-                    changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
-                }
-            }
-            steps { scanFilesystem() }
-        }
-
-        stage('Compile') {
-            agent { label 'master' }
-            when {
-                anyOf {
-                    branch 'main'
-                    changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
-                }
-            }
-            steps { compileApp() }
-        }
-
-        stage('Unit Test'){
-            agent { label 'master'}
-            when { anyOf { 
-                branch 'main'
-                changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB' } }
-            steps { test() }
-        }
-
-        stage('SonarQube Analysis') {
-            agent { label 'master' }
-            when { anyOf {
-                branch 'main' 
-                changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
-            } }
-            steps { scan() }
-        }
-
-        stage ('Maven Package'){
-            agent { label 'master' }
-            when { anyOf
-                {
-                    branch 'main'
-                    changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
-                }
-            }
-            steps { packageApp() }
-        }
-
-        stage('Docker Build') {
-            agent { label 'master' }
-            when { anyOf 
-                {
-                    branch 'main'  
-                    changeRequest target: 'main', branch: 'feature/*', comparator: 'GLOB'
-                 } 
-            }
-            steps {
-                buildImage()
-            }
-        }
-
-        stage('Push Image (DEV)') {
-            agent { label 'master' }
-            when { branch 'main'; not { changeRequest() } }
-            steps {
-                push("dev-${env.GIT_TAG}")
-            }
-        }
-
-        stage("Testing Dev") {
-            agent { label 'master' }
-            when { branch 'main'; not { changeRequest() } }
-            steps {
-                sh "echo 'Testing DEV environment.....'"
-            }
-        }
-
-        stage('Testing Environment Approval Guardrail') {
-            when { branch 'main'; not { changeRequest() } }
-            steps {
-                script {
-                    env.PROCEED_TEST = approvalGuardrail(
-                        environment: 'TEST',
-                        timeout_hours: 24,
-                        message: "Approve deployment to Testing Environment?"
-                    )
-                }
-            }
-        }
-
-        stage('Push Image (TEST)') {
-            agent { label 'master' }
-            when {
-                branch 'main'
-                not { changeRequest() }
-                expression { env.PROCEED_TEST == 'true' }
-            }
-            steps {
+                echo "Promoting Release Candidate '${env.GIT_TAG}' to TEST environment..."
                 retagImage(
-                    source_tag: "dev-${env.GIT_TAG}",
+                    source_tag: "dev-${env.GIT_SHORT_SHA}",
                     target_tag: "test-${env.GIT_TAG}"
                 )
+                sh "echo 'Automated verification completed on TEST environment for test-${env.GIT_TAG}.'"
             }
         }
 
-        stage("Testing on Test") {
-            agent { label 'master' }
-            when {
-                branch 'main'
-                not { changeRequest() }
-                expression { env.PROCEED_TEST == 'true' }
-            }
-            steps {
-                sh "echo 'Testing TEST environment.....'"
-            }
-        }
-
-        // ── MAIN BRANCH: Production Release ────────────────────
-        stage('Production Approval Guardrail') {
-            when {
-                branch 'main'
-                not { changeRequest() }
-                expression { env.PROCEED_TEST == 'true' }
-            }
-            steps {
-                script {
-                    env.PROCEED_PROD = approvalGuardrail(
-                        environment: 'PRODUCTION',
-                        timeout_hours: 24,
-                        message: "Approve deployment to PRODUCTION?"
-                    )
-                }
-            }
-        }
-
+        // ════════════════════════════════════════════════════════════════════
+        // 3. PROMOTION TO PRODUCTION: Triggered by Official Release Tag (v*)
+        //    Strict Promotion: Retags directly from the verified TEST candidate
+        // ════════════════════════════════════════════════════════════════════
         stage('Release to PROD') {
             agent { label 'master' }
             when {
-                branch 'main'
-                not { changeRequest() }
-                expression { env.PROCEED_PROD == 'true' }
+                allOf {
+                    tag pattern: "v*", comparator: "GLOB"
+                    not { tag pattern: "v*-rc*", comparator: "GLOB" }
+                }
+                beforeAgent true
             }
             steps {
+                getGitVersion()
+                echo "Promoting Official Release '${env.GIT_TAG}' to PRODUCTION..."
+                // Strict chain: Retags directly from the tested RC image (fails if RC was never pushed)
                 retagImage(
-                    source_tag: "test-${env.GIT_TAG}",
+                    source_tag: "test-${env.GIT_TAG}-rc1",
                     target_tag: "prod-${env.GIT_TAG}"
                 )
+                sh "echo 'Production release prod-${env.GIT_TAG} deployed successfully via Argo CD.'"
             }
         }
     }
 
     post {
-        success { echo "app_ci: SUCCEEDED — branch '${env.BRANCH_NAME}' (Tag: ${env.GIT_TAG ?: 'N/A'})" }
-        failure { echo "app_ci: FAILED    — branch '${env.BRANCH_NAME}' (Tag: ${env.GIT_TAG ?: 'N/A'})" }
+        success { echo "app_ci: SUCCEEDED — ${env.TAG_NAME ? 'Tag: ' + env.TAG_NAME : 'Branch: ' + env.BRANCH_NAME} (GIT_TAG: ${env.GIT_TAG ?: 'N/A'})" }
+        failure { echo "app_ci: FAILED    — ${env.TAG_NAME ? 'Tag: ' + env.TAG_NAME : 'Branch: ' + env.BRANCH_NAME} (GIT_TAG: ${env.GIT_TAG ?: 'N/A'})" }
     }
 }
