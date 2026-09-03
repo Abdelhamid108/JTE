@@ -24,10 +24,11 @@ void onAfterStep() {
 
 @CleanUp
 void onCleanUp() {
-    echo "docker [@CleanUp]: Purging build workspace and cleaning up..."
     try {
-        cleanWs()
+        if (getContext(hudson.FilePath.class) != null) {
+            cleanWs()
+        }
     } catch (Exception e) {
-        echo "docker [@CleanUp]: Warning during cleanWs: ${e.message}"
+        // Node workspace already released
     }
 }

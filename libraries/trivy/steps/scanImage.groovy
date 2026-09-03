@@ -22,8 +22,7 @@ void call(Map args = [:]) {
                 --timeout ${timeout} \\
                 --severity ${severity} \\
                 --exit-code ${exitCode} \\
-                -o ${reportFile} \\
-                ${image}
+                ${image} | tee ${reportFile}
         """,
         returnStatus: true
     )
