@@ -18,14 +18,4 @@ void onBeforeStep() {
             login()
         }
     }
-
-    if (currentStep == 'retagImage') {
-        echo "ecr [@BeforeStep 'retagImage']: Scanning source image before promotion..."
-        Map args = hookContext.args ? hookContext.args[0] : [:]
-        String imageUri = "${config.ecr_registry}/${pipelineConfig.libraries.docker.image_name}:${args.source_tag}"
-
-        assumeRole {
-            scanImage(image_uri: imageUri, fresh_pull: true)
-        }
-    }
 }
