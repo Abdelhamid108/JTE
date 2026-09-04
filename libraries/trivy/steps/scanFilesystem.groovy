@@ -1,33 +1,25 @@
-// steps/scanFilesystem.groovy — Scan application source/dependencies.
-//
-// Contract:
-//   input : application source tree (config.app_dir)
-//   output: trivy-fs-report.<format> archived as a build artifact
-//   fails : any finding at/above severity_threshold (blocking policy)
+// steps/scanFilesystem.groovy — Scan application source/dependencies
 
-void call(Map args = [:]) {
-    String appDir     = args.app_dir ?: config.app_dir ?: 'application'
-    String severity   = config.severity_threshold ?: 'CRITICAL,HIGH'
-    String exitCode   = config.exit_code ?: '0'
+void call() {
+    String appDir     = config.app_dir       ?: '.'
+    String severity   = config.severity_threshold
+    String exitCode   = config.exit_code     ?: '0'
     String format     = config.report_format ?: 'table'
-    String ignoreFile = config.ignore_file ?: ''
-    String timeout    = config.timeout ?: '20m'
-
-    String ignoreFlag = ignoreFile ? "--ignorefile ${ignoreFile}" : ''
+    String timeout    = config.timeout       ?: '20m'
+    String ignoreFlag = config.ignore_file   ? "--ignorefile ${config.ignore_file}" : ''
     String reportFile = "trivy-fs-report.${format == 'table' ? 'txt' : format}"
 
-    echo "trivy/scanFilesystem: scanning '${appDir}' (severity>=${severity}, non-blocking)"
-
+    echo "trivy/scanFilesystem: scanning '${appDir}' (severity>=${severity})"
     int status = sh(
         script: """
-            trivy fs \
-                --timeout ${timeout} \
-                --severity ${severity} \
-                --exit-code ${exitCode} \
-                --format ${format} \
-                ${ignoreFlag} \
-                -o ${reportFile} \
-                ${appDir}
+            set -o pipefail
+            trivy fs \\
+                --timeout ${timeout} \\
+                --severity ${severity} \\
+                --exit-code ${exitCode} \\
+                --format ${format} \\
+                ${ignoreFlag} \\
+                ${appDir} 2>&1 | tee ${reportFile}
         """,
         returnStatus: true
     )
@@ -38,5 +30,6 @@ void call(Map args = [:]) {
         error "trivy/scanFilesystem: Trivy failed to complete successfully."
     }
 
+    env.STAGE_FS_SCAN_PASSED = 'true'
     echo "trivy/scanFilesystem: scan completed. Report archived as ${reportFile}."
 }

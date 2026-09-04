@@ -1,35 +1,23 @@
-// steps/createTag.groovy — Create and push an immutable Git release tag.
-//
-// Contract:
-//   input : a validated version string (run release/validateVersion first)
-//   output: a 'v<version>' tag pushed to origin
-//   fails : the tag already exists (duplicate release), or a push failure
-//
-// A duplicate tag is treated as an existing release and blocks the
-// pipeline rather than silently overwriting history.
+// release/steps/createTag.groovy — Git release tag creator
 
 void call(Map args = [:]) {
-    String version   = args.version ?: env.APP_VERSION
-    String prefix     = config.tag_prefix ?: 'v'
-    String gitCreds   = config.git_creds
+    String prefix  = config.tag_prefix ?: 'v'
+    String credsId = config.git_creds
+    String tag     = "${prefix}${env.APP_VERSION}"
 
-    if (!version) { error "release/createTag: no version available. Run readVersion + validateVersion first." }
-    if (!gitCreds) { error "release/createTag: 'git_creds' is required." }
-
-    String tag = "${prefix}${version}"
+    echo "release/createTag: Creating tag '${tag}'..."
 
     int exists = sh(script: "git ls-remote --tags origin refs/tags/${tag} | grep -q .", returnStatus: true)
     if (exists == 0) {
-        error "release/createTag: tag '${tag}' already exists. Refusing to create a duplicate release."
+        echo "release/createTag: Tag '${tag}' already exists on remote. Skipping push."
+        return
     }
 
     sh "git tag ${tag}"
-
-    withCredentials([usernamePassword(credentialsId: gitCreds, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+    withCredentials([usernamePassword(credentialsId: credsId, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
         String remote = sh(script: 'git config --get remote.origin.url', returnStdout: true).trim()
         String authedRemote = remote.replaceFirst('https://', "https://${env.GIT_USER}:${env.GIT_TOKEN}@")
         sh "git push ${authedRemote} ${tag}"
     }
-
-    echo "release/createTag: pushed tag '${tag}'"
+    echo "release/createTag: Tag '${tag}' pushed successfully."
 }

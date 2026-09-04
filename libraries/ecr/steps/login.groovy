@@ -1,41 +1,15 @@
-// steps/login.groovy — Authenticate Docker against the target ECR registry.
-//
-// Contract:
-//   input : config.aws_region, config.aws_account_id (optional)
-//   output: env.ECR_REGISTRY, docker CLI authenticated for subsequent push
-//   fails : if the agent's IRSA identity lacks ecr:GetAuthorizationToken
-//
-// No static AWS credentials are used here — the Jenkins agent pod is
-// expected to run under a Kubernetes ServiceAccount bound to an IAM role
-// via IRSA, so the AWS CLI resolves temporary credentials automatically.
+// steps/login.groovy — AWS ECR credential handshake (auth adapter only)
+// Sets env.ECR_REGISTRY so downstream docker steps can reference the full registry URL.
 
-void call(Map args = [:]) {
+void call() {
+    String registry = config.ecr_registry
+    String region   = config.aws_region
 
-    String region = args.aws_region ?: config.aws_region
-    String accountId = args.aws_account_id ?: config.aws_account_id
-
-    if (!region) {
-        error "ecr/login: 'aws_region' is required."
+    echo "ecr/login: Authenticating Docker against ${registry}..."
+    retry(3) {
+        sh "set -o pipefail; aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${registry}"
     }
-
-    if (!accountId) {
-        accountId = sh(
-            script: "aws sts get-caller-identity --query Account --output text",
-            returnStdout: true
-        ).trim()
-    }
-
-    String registry =
-        "${accountId}.dkr.ecr.${region}.amazonaws.com"
 
     env.ECR_REGISTRY = registry
-
-    echo "ecr/login: authenticating Docker against ${registry}"
-
-    sh """
-        aws ecr get-login-password --region ${region} |
-        docker login \
-          --username AWS \
-          --password-stdin ${registry}
-    """
+    echo "ecr/login: Done. ECR_REGISTRY=${registry}"
 }

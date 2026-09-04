@@ -1,19 +1,19 @@
-// library_config.groovy — Version Manager library configuration schema
+// library_config.groovy — Generic Version Manager schema
 
 fields {
     required {
+        registry_path   = String   // s3://bucket/path/version-registry.json
+        component_name  = String   // Name of component (e.g. 'petclinic', 'order-service')
+        artifact_type   = String   // 'APPLICATION', 'INFRASTRUCTURE', 'SERVICE'
     }
     optional {
-        app_dir             = String   // Default: '.' or 'application'
-        version_file        = String   // Default: 'VERSION' or 'INFRA_VERSION'
-        target_environment  = String
-        repository          = String
-        registry_path       = String   // s3://... path to the JSON version registry
-        promotion_order     = List     // e.g. ['dev', 'test', 'prod']
-        strict_promotion    = Boolean  // Default: true — gate is always enforced, no bypass
-        lock_resource_name  = String   // Jenkins lockable resource name for S3 sync
-        artifact_type       = String   // e.g. 'APPLICATION', 'INFRASTRUCTURE'
-        component_name      = String   // e.g. 'petclinic', 'eks-cluster'
+        app_dir            = String   // Subdirectory path. Default: '.'
+        version_file       = String   // Default: 'VERSION'
+        promotion_order    = List     // e.g. ['dev', 'test', 'prod']
+        strict_promotion   = Boolean  // Default: true
+        coverage_threshold = Integer  // JaCoCo instruction coverage % (e.g. 80)
+        lock_resource_name = String   // Jenkins lockable resource name
+        target_environment = String
     }
 }
 

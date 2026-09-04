@@ -1,30 +1,40 @@
-// steps/versionGate.groovy
-//
-// Version Gate Policy: Enforces that the target component version is not already
-// ACTIVE in the target environment before allowing infrastructure or application promotion.
+// steps/versionGate.groovy — Enforce monotonic promotion and validate release activeness
 
 void call(Map args = [:]) {
-    String environment = args.environment ?: config.target_environment ?: 'prod'
-    boolean strict = (config.strict_promotion != null) ? config.strict_promotion.toString().toBoolean() : true
-    String version = args.version ?: env.APP_VERSION ?: readVersion()
-    String component = args.component ?: config.component_name ?: env.JOB_BASE_NAME ?: 'eks-cluster'
-    String type = args.type ?: config.artifact_type ?: (component.contains('cluster') ? 'INFRASTRUCTURE' : 'APPLICATION')
+    String environment = args.environment ?: config.target_environment
+    String component   = config.component_name
+    String type        = config.artifact_type
+    String version     = env.APP_VERSION ?: readVersion()
+    List   order       = config.promotion_order ?: []
+    boolean strict     = config.strict_promotion?.toBoolean() ?: true
+    boolean isPR       = env.CHANGE_ID != null
 
-    if (!environment) {
-        error "versionGate: 'environment' is required."
-    }
+    if (!environment) { error "versionGate: 'environment' is required." }
 
-    echo "versionGate: checking ${type} [${component}@${version}] for '${environment}'..."
+    echo "═══════════════════════════════════════════"
+    echo "  VERSION GATE — ${type} [${component}@${version}] -> '${environment}'"
+    echo "═══════════════════════════════════════════"
 
-    Map result = checkVersion(version: version, environment: environment, component: component, type: type)
-
-    if (result.exists) {
-        if (strict) {
-            error "versionGate: Version '${version}' is already ACTIVE in '${environment}'. Bump INFRA_VERSION to deploy new changes."
-        } else {
-            echo "versionGate: WARNING — '${version}' is already ACTIVE in '${environment}', but strict_promotion=false. Continuing."
+    if (!isPR) {
+        if (checkVersion(version: version, environment: environment).exists) {
+            if (strict) {
+                error "versionGate: '${version}' is already ACTIVE in '${environment}'. Bump version to deploy."
+            } else {
+                echo "versionGate: WARNING — '${version}' already ACTIVE in '${environment}'."
+            }
         }
-    } else {
-        echo "versionGate: PASSED — '${version}' is clear to proceed for '${environment}'."
     }
+
+    int envIndex = order.indexOf(environment)
+    if (envIndex > 0) {
+        String prevEnv = order[envIndex - 1]
+        echo "versionGate: Verifying prerequisite '${prevEnv}'..."
+        if (!checkVersion(version: version, environment: prevEnv).exists) {
+            error "versionGate: Chain violated — '${version}' is NOT active in '${prevEnv}'."
+        }
+        echo "versionGate: Prerequisite '${prevEnv}' verified."
+    }
+
+    echo "  VERSION GATE PASSED — ${version} clear for '${environment}'"
+    echo "═══════════════════════════════════════════"
 }

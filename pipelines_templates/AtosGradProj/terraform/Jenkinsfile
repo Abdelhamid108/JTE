@@ -24,10 +24,6 @@ pipeline {
             agent { label 'master' }
             steps {
                 checkoutCode()
-                script {
-                    readVersion()
-                    echo "Version: ${env.APP_VERSION} | Action: ${params.ACTION} | Branch: ${env.BRANCH_NAME}"
-                }
             }
         }
 

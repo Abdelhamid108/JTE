@@ -1,70 +1,68 @@
-// steps/installTools.groovy — Automatically installs Terraform and Checkov on the agent.
+// steps/installTools.groovy — Verify / install tools required by the Terraform pipeline:
+// pip3, Terraform, Checkov, AWS CLI v2.
+// Each block is a no-op when the tool is already present on the agent image.
 
-void call(Map args = [:]) {
-    String tfVersion = args.terraform_version ?: config.terraform_version ?: '1.10.5'
+void call() {
+    String tfVersion = config.terraform_version ?: '1.10.5'
 
-    echo "Checking agent dependencies (Terraform & Checkov)..."
-
-    sh """
+    sh """#!/bin/bash
+        set -e
         export PATH="\${HOME}/.local/bin:/usr/local/bin:\$PATH"
+        echo "================================================================"
+        echo "  installTools: verifying CI toolchain"
+        echo "================================================================"
 
-        # 1. Install Terraform if not present
+        # ── 0. pip3 ────────────────────────────────────────────────────────
+        if ! command -v pip3 >/dev/null 2>&1; then
+            echo "installTools: pip3 not found — installing via ensurepip/get-pip..."
+            python3 -m ensurepip --upgrade 2>/dev/null || \
+                curl -fsSL https://bootstrap.pypa.io/get-pip.py | python3 -
+        fi
+        # Upgrade pip — use --break-system-packages for Debian bookworm (PEP 668)
+        python3 -m pip install --quiet --upgrade pip --break-system-packages 2>/dev/null || \
+            python3 -m pip install --user --quiet --upgrade pip
+        export PATH="\${HOME}/.local/bin:\$PATH"
+        echo "[OK] pip \$(pip3 --version)"
+
+        # ── 1. Terraform ───────────────────────────────────────────────────
         if ! command -v terraform >/dev/null 2>&1; then
-            echo "installTools: Terraform not found in PATH. Installing Terraform v${tfVersion}..."
-            
-            TARGET_DIR="/usr/local/bin"
-            if [ ! -w "\$TARGET_DIR" ]; then
-                TARGET_DIR="\${HOME}/.local/bin"
-                mkdir -p "\$TARGET_DIR"
-            fi
-
-            curl -fsSL "https://releases.hashicorp.com/terraform/${tfVersion}/terraform_${tfVersion}_linux_amd64.zip" -o /tmp/terraform.zip
-            
-            if command -v unzip >/dev/null 2>&1; then
-                unzip -q -o /tmp/terraform.zip -d "\$TARGET_DIR"
-            elif command -v python3 >/dev/null 2>&1; then
-                python3 -c "import zipfile; zipfile.ZipFile('/tmp/terraform.zip').extractall('\$TARGET_DIR')"
-            fi
-            
-            chmod +x "\$TARGET_DIR/terraform"
-            rm -f /tmp/terraform.zip
-            echo "installTools: Terraform installed to \$TARGET_DIR/terraform"
+            echo "installTools: Terraform not found — installing v${tfVersion}..."
+            ARCH=\$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+            curl -fsSL "https://releases.hashicorp.com/terraform/${tfVersion}/terraform_${tfVersion}_linux_\${ARCH}.zip" -o /tmp/tf.zip
+            unzip -q -o /tmp/tf.zip -d /usr/local/bin
+            rm -f /tmp/tf.zip
+            chmod +x /usr/local/bin/terraform
         fi
+        echo "[OK] \$(terraform -version | head -1)"
 
-        # 2. Install Checkov if not present
+        # ── 2. Checkov ─────────────────────────────────────────────────────
         if ! command -v checkov >/dev/null 2>&1; then
-            echo "installTools: Checkov not found in PATH. Installing Checkov..."
-            if ! command -v pip3 >/dev/null 2>&1 && ! command -v pip >/dev/null 2>&1; then
-                if command -v apt-get >/dev/null 2>&1 && [ "\$(id -u)" -eq 0 ]; then
-                    apt-get update -qq && apt-get install -y -qq python3-pip
-                elif command -v apk >/dev/null 2>&1 && [ "\$(id -u)" -eq 0 ]; then
-                    apk add --no-cache py3-pip
-                fi
+            echo "installTools: Checkov not found — installing via pip3..."
+            pip3 install --quiet checkov --break-system-packages 2>/dev/null || \
+                pip3 install --user --quiet checkov
+        fi
+        export PATH="\${HOME}/.local/bin:\$PATH"
+        echo "[OK] checkov \$(checkov --version 2>&1 | head -1)"
+
+        # ── 3. AWS CLI ─────────────────────────────────────────────────────
+        if ! command -v aws >/dev/null 2>&1; then
+            echo "installTools: AWS CLI not found — installing v2..."
+            ARCH=\$(uname -m)
+            if [ "\$ARCH" = "x86_64" ]; then
+                curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+            else
+                curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
             fi
-
-            pip3 install --break-system-packages --ignore-installed checkov 2>/dev/null \
-                || pip3 install --user --ignore-installed checkov 2>/dev/null \
-                || pip install --user --ignore-installed checkov 2>/dev/null \
-                || true
-
-            # If installed to ~/.local/bin and /usr/local/bin is writable, create a symlink
-            if [ -f "\${HOME}/.local/bin/checkov" ] && [ -w "/usr/local/bin" ] && [ ! -f "/usr/local/bin/checkov" ]; then
-                ln -sf "\${HOME}/.local/bin/checkov" /usr/local/bin/checkov
-            fi
+            unzip -q /tmp/awscliv2.zip -d /tmp/awscli
+            /tmp/awscli/aws/install --update
+            rm -rf /tmp/awscliv2.zip /tmp/awscli
         fi
+        echo "[OK] \$(aws --version)"
 
-        # 3. Verify tools
-        export PATH="\${HOME}/.local/bin:/usr/local/bin:\$PATH"
-        if command -v terraform >/dev/null 2>&1; then
-            terraform -version
-        else
-            echo "Warning: Terraform not found in PATH"
-        fi
+        echo "================================================================"
+        echo "  installTools: all tools verified OK"
+        echo "  pip3 | terraform | checkov | aws-cli"
+        echo "================================================================"
 
-        if command -v checkov >/dev/null 2>&1; then
-            checkov --version
-        else
-            echo "Warning: Checkov could not be verified in PATH. Ensure ~/.local/bin or Python bin is in PATH."
-        fi
     """
 }
