@@ -30,6 +30,7 @@ pipeline {
                     steps {
                         getGitVersion()
                         assumeRole {
+                            login ()
                             imageExists(tag: "dev-${env.GIT_TAG}")
                         }
                     }
@@ -89,6 +90,7 @@ pipeline {
                 getGitVersion()
                 echo "Promoting Release Candidate '${env.GIT_TAG}' to TEST environment..."
                 assumeRole {
+                    login()
                     retagImage(
                         source_tag: "dev-${env.GIT_SHORT_SHA}",
                         target_tag: "test-${env.GIT_TAG}"
@@ -116,6 +118,7 @@ pipeline {
                 echo "Promoting Official Release '${env.GIT_TAG}' to PRODUCTION..."
                 // Strict chain: Retags directly from the tested RC image (fails if RC was never pushed)
                 assumeRole {
+                    login()
                     retagImage(
                         source_tag: "test-${env.GIT_TAG}-rc",
                         target_tag: "prod-${env.GIT_TAG}"
