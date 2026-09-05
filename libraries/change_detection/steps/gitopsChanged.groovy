@@ -6,7 +6,7 @@
 
 boolean call() {
     List<String> files = changedFiles()
-    List<String> patterns = config.gitops_paths ?: ['gitops/**']
+    List<String> patterns = config.gitops_paths ?: ['gitops/**', 'helm/**']
     boolean result = matchesAny(files, patterns)
     echo "change_detection/gitopsChanged: ${result}"
     return result

@@ -22,7 +22,13 @@ pipeline {
         stage('CI & Dev') {
             agent { label 'master' }
             when {
-                not { buildingTag() }
+                allOf {
+                    not { buildingTag() }
+                    anyOf {
+                        changeset "application/**"
+                        branch 'main'
+                    }
+                }
                 beforeAgent true
             }
             stages {

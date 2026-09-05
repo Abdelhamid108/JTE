@@ -1,0 +1,61 @@
+// pipelines_templates/AtosGradProj/helm_ci/Jenkinsfile
+//
+// Continuous Integration Pipeline for Helm Charts & Argo CD GitOps Manifests.
+// Validates syntax, renders templates against all environment values, and scans for misconfigurations.
+// Argo CD handles Continuous Delivery (CD) automatically on merge to main.
+
+pipeline {
+    agent { label 'master' }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    stages {
+        stage('Helm Lint') {
+            when {
+                anyOf {
+                    changeset "helm/**"
+                    changeset "gitops/**"
+                    branch 'main'
+                }
+            }
+            steps {
+                helmLint()
+            }
+        }
+
+        stage('Template Dry-Run') {
+            when {
+                anyOf {
+                    changeset "helm/**"
+                    changeset "gitops/**"
+                    branch 'main'
+                }
+            }
+            steps {
+                helmTemplate()
+            }
+        }
+
+        stage('Security Policy Scan') {
+            when {
+                anyOf {
+                    changeset "helm/**"
+                    changeset "gitops/**"
+                    branch 'main'
+                }
+            }
+            steps {
+                helmScan()
+            }
+        }
+    }
+
+    post {
+        success { echo "helm_ci: Validation SUCCEEDED — Helm charts & GitOps manifests are valid." }
+        failure { echo "helm_ci: Validation FAILED — Please fix template errors before merging to main." }
+    }
+}
