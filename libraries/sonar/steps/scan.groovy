@@ -1,6 +1,7 @@
 void call(Map args = [:]) {
     // 1. Prioritize args from Jenkinsfile, fallback to JTE config
     String appDir     = args.app_dir ?: config.app_dir ?: '.'
+    String mvnCmd     = config.maven_command ?: 'mvn'
     String projectKey = args.sonar_project ?: config.sonar_project
     String credentials= args.credentials_id ?: config.sonar_credentials_id
     String hostUrl    = args.host_url ?: config.sonar_host_url ?: ''
@@ -24,7 +25,7 @@ void call(Map args = [:]) {
 
     withCredentials([string(credentialsId: credentials, variable: 'SONAR_TOKEN')]) {
         dir(appDir) {
-            sh "sonar-scanner ${argString} -Dsonar.token=\$SONAR_TOKEN"
+            sh "${mvnCmd} -B sonar:sonar ${argString} -Dsonar.token=\$SONAR_TOKEN"
         }
     }
 }
