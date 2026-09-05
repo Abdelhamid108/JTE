@@ -58,7 +58,7 @@ pipeline {
 
                 stage('Docker Build') {
                     steps {
-                        buildImage(tag:"dev-${env.SHORT_SHA}")
+                        buildImage(tag: "dev-${env.GIT_SHORT_SHA}")
                     }
                 }
 
