@@ -29,7 +29,9 @@ pipeline {
                 stage('Version Check') {
                     steps {
                         getGitVersion()
-                        imageExists(tag: "dev-${env.GIT_TAG}")
+                        assumeRole {
+                            imageExists(tag: "dev-${env.GIT_TAG}")
+                        }
                     }
                 }
 
@@ -80,16 +82,18 @@ pipeline {
         stage('Promote to TEST') {
             agent { label 'master' }
             when {
-                tag pattern: "v*-rc*", comparator: "GLOB"
+                tag pattern: "v*-rc", comparator: "GLOB"
                 beforeAgent true
             }
             steps {
                 getGitVersion()
                 echo "Promoting Release Candidate '${env.GIT_TAG}' to TEST environment..."
-                retagImage(
-                    source_tag: "dev-${env.GIT_SHORT_SHA}",
-                    target_tag: "test-${env.GIT_TAG}"
-                )
+                assumeRole {
+                    retagImage(
+                        source_tag: "dev-${env.GIT_SHORT_SHA}",
+                        target_tag: "test-${env.GIT_TAG}"
+                    )
+                }
                 sh "echo 'Automated verification completed on TEST environment for test-${env.GIT_TAG}.'"
             }
         }
@@ -111,10 +115,12 @@ pipeline {
                 getGitVersion()
                 echo "Promoting Official Release '${env.GIT_TAG}' to PRODUCTION..."
                 // Strict chain: Retags directly from the tested RC image (fails if RC was never pushed)
-                retagImage(
-                    source_tag: "test-${env.GIT_TAG}-rc1",
-                    target_tag: "prod-${env.GIT_TAG}"
-                )
+                assumeRole {
+                    retagImage(
+                        source_tag: "test-${env.GIT_TAG}-rc",
+                        target_tag: "prod-${env.GIT_TAG}"
+                    )
+                }
                 sh "echo 'Production release prod-${env.GIT_TAG} deployed successfully via Argo CD.'"
             }
         }

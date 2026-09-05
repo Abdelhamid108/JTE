@@ -5,21 +5,22 @@ boolean call(Map args = [:]) {
 
     echo "Checking if ECR tag exists: ${repository}:${tag} in ${region}..."
 
-    int status = sh(
+    String output = sh(
         script: """
             aws ecr describe-images \
                 --repository-name "${repository}" \
                 --image-ids imageTag="${tag}" \
-                --region "${region}" 
+                --region "${region}" 2>&1 || true
         """,
-        returnStatus: true
-    )
+        returnStdout: true
+    ).trim()
 
-    boolean exists = (status == 0)
-    if (exists) {
+    if (output.contains("imageTag") || output.contains("imageDigest")) {
         error "Image tag '${tag}' ALREADY EXISTS in ECR repository '${repository}'! You must bump the version tag."
-    } else {
+    } else if (output.contains("ImageNotFoundException")) {
         echo "Image tag '${tag}' does not exist in ECR. Safe to build and push."
+    } else {
+        error "ecr/imageExists: AWS error while checking tag '${tag}':\n${output}"
     }
     return false
 }
