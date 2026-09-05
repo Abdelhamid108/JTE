@@ -50,6 +50,7 @@ libraries {
     ecr {
         aws_region   = "us-east-1"
         ecr_registry = "069089526123.dkr.ecr.us-east-1.amazonaws.com"
+        image_name   = "petclinic-project/petclinitc-app"
     }
     
     trivy {
