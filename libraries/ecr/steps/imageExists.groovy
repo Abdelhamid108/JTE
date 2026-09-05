@@ -10,7 +10,7 @@ boolean call(Map args = [:]) {
             aws ecr describe-images \
                 --repository-name "${repository}" \
                 --image-ids imageTag="${tag}" \
-                --region "${region}" 2>&1 || true
+                --region "${region}" 
         """,
         returnStdout: true
     ).trim()
