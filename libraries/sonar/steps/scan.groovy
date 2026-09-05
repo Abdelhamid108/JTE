@@ -1,6 +1,6 @@
 // steps/scan.groovy — Run SonarQube/SonarCloud analysis and enforce the quality gate
 
-void call() {
+void call(Map args = [:]) {
     String appDir     = args.app_dir ?: config.app_dir ?:  '.'
     String mvnCmd     = config.maven_command  ?: 'mvn'
     String project    = config.sonar_project

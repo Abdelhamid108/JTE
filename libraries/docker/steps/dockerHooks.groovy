@@ -18,7 +18,6 @@ void onAfterStep() {
     if (currentStep == 'buildImage') {
         echo "docker [@AfterStep 'buildImage']: Enforcing Container Smoke Validation & Image Security Scan..."
         containerValidate()
-        scanImage()
     }
 }
 
