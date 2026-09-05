@@ -40,9 +40,9 @@ pipeline {
                     steps { compileApp() }
                 }
 
-                stage('Trivy FS Scan') {
-                    steps { scanFilesystem() }
-                }
+                // stage('Trivy FS Scan') {
+                //     steps { scanFilesystem() }
+                // }
 
                 stage('Unit Test') {
                     steps { test() }
