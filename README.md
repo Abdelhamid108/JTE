@@ -1,657 +1,634 @@
-# Jenkins Templating Engine (JTE) — CI/CD Pipeline Framework
+# Jenkins Templating Engine (JTE) — Enterprise CI/CD Framework
 
-A production-grade, modular CI/CD pipeline framework built on the [Jenkins Templating Engine](https://plugins.jenkins.io/templating-engine/). This repository provides reusable JTE libraries and pipeline templates for application deployment and infrastructure provisioning, following enterprise best practices: **immutable artifacts**, **version-controlled releases**, and **strict promotion workflows**.
+A production-grade, modular CI/CD pipeline framework built on the [Jenkins Templating Engine (JTE)](https://plugins.jenkins.io/templating-engine/). This repository provides reusable JTE libraries, lifecycle hooks, and pipeline templates for microservice applications, Helm charts, GitOps manifests, and cloud infrastructure provisioning.
 
 ---
 
 ## Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Repository Structure](#repository-structure)
-- [Pipeline Workflows](#pipeline-workflows)
-  - [Application CI Pipeline](#application-ci-pipeline)
-  - [Application CD Pipeline](#application-cd-pipeline)
-  - [Terraform Infrastructure Pipeline](#terraform-infrastructure-pipeline)
-  - [Ansible Configuration Pipeline](#ansible-configuration-pipeline)
-- [Libraries Reference](#libraries-reference)
-  - [npm](#npm-library)
-  - [docker](#docker-library)
-  - [kubernetes](#kubernetes-library)
-  - [version_manager](#version_manager-library)
-  - [terraform](#terraform-library)
-  - [ansible](#ansible-library)
-- [Version Management](#version-management)
-- [Version Registry (S3)](#version-registry-s3)
-- [Configuration Guide](#configuration-guide)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
+- [1. Architecture Overview](#1-architecture-overview)
+  - [Core Principles](#core-principles)
+  - [System Flow & GitOps Ecosystem](#system-flow--gitops-ecosystem)
+- [2. Repository Structure](#2-repository-structure)
+- [3. Pipeline Templates Catalog](#3-pipeline-templates-catalog)
+  - [Atos Graduation Project: Application CI/CD (`app_ci`)](#31-atos-graduation-project-application-cicd-app_ci)
+  - [Atos Graduation Project: Infrastructure CI/CD (`terraform`)](#32-atos-graduation-project-infrastructure-cicd-terraform)
+  - [Atos Graduation Project: Helm & GitOps CI (`helm_ci`)](#33-atos-graduation-project-helm--gitops-ci-helm_ci)
+  - [CI/CD Project: Node.js Application Pipeline (`app_CI`)](#34-cicd-project-nodejs-application-pipeline-app_ci)
+  - [CI/CD Project: Application Deployment Pipeline (`app_CD`)](#35-cicd-project-application-deployment-pipeline-app_cd)
+  - [CI/CD Project: Terraform & Ansible Integration](#36-cicd-project-terraform--ansible-integration)
+- [4. Libraries Reference Manual (15 Libraries)](#4-libraries-reference-manual)
+  - [aws](#41-aws-library)
+  - [ecr](#42-ecr-library)
+  - [docker](#43-docker-library)
+  - [helm](#44-helm-library)
+  - [maven](#45-maven-library)
+  - [sonar](#46-sonar-library)
+  - [trivy](#47-trivy-library)
+  - [change_detection](#48-change_detection-library)
+  - [release](#49-release-library)
+  - [version_manager](#410-version_manager-library)
+  - [gitops](#411-gitops-library)
+  - [kubernetes](#412-kubernetes-library)
+  - [terraform](#413-terraform-library)
+  - [ansible](#414-ansible-library)
+  - [npm](#415-npm-library)
+- [5. Cross-Cutting Architectural Patterns](#5-cross-cutting-architectural-patterns)
+  - [AWS STS Role Assumption & Credential Scoping](#51-aws-sts-role-assumption--credential-scoping)
+  - [Monorepo Path Filtering (`changeset`)](#52-monorepo-path-filtering-changeset)
+  - [GitOps: CI Validation vs CD Reconciliation](#53-gitops-ci-validation-vs-cd-reconciliation)
+- [6. Setup, Prerequisites & Credentials](#6-setup-prerequisites--credentials)
 
 ---
 
-## Architecture Overview
-
-The framework is designed around three separate repositories:
-
-| Repository | Purpose | Branching |
-|:-----------|:--------|:----------|
-| **Source Code** | Application source, Dockerfile, tests, `VERSION` file | `dev` → `main` |
-| **Kubernetes Manifests** | Deployment manifests, Helm values, environment configs | `dev`, `main` |
-| **Infrastructure** | Terraform modules, Ansible playbooks | `main` (single branch) |
-
-```
-┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Source Code     │     │  K8s Manifests   │     │  Infrastructure  │
-│  Repository      │     │  Repository      │     │  Repository      │
-│                  │     │                  │     │                  │
-│  • App Code      │     │  • YAML Manifests│     │  • Terraform     │
-│  • Dockerfile    │     │  • Helm Values   │     │  • Ansible       │
-│  • Tests         │     │  • Env Configs   │     │  • Modules       │
-│  • VERSION       │     │                  │     │                  │
-└────────┬─────────┘     └────────┬─────────┘     └────────┬─────────┘
-         │                        │                        │
-         └────────────────────────┴────────────────────────┘
-                                  │
-                    ┌─────────────┴──────────────┐
-                    │   Jenkins + JTE Framework  │
-                    │                            │
-                    │   • Reusable Libraries     │
-                    │   • Pipeline Templates     │
-                    │   • Version Registry (S3)  │
-                    └────────────────────────────┘
-```
+## 1. Architecture Overview
 
 ### Core Principles
 
-- **Immutable Artifacts**: Docker images are built once and promoted through environments. Production uses the exact same image tested in DEV.
-- **Version File as Source of Truth**: The `VERSION` file drives Docker image tags, registry entries, and deployment manifest tags. Never use Git commit SHAs as deployment tags.
-- **Strict Promotion**: Versions must pass through each environment in order (e.g., `DEV` → `PRODUCTION`). Skipping environments is blocked.
-- **Separation of Concerns**: CI (build/test/push) is decoupled from CD (manifest update/deploy). Pipeline steps have single responsibilities.
+1. **Decoupled Primitives (Single Responsibility)**: Pipeline steps perform a single, discrete action (e.g. compile, push, lint). A step never invokes another step directly.
+2. **Aspect-Oriented Governance via Lifecycle Hooks**: Cross-cutting requirements (security scanning, Docker registry login, workspace cleanup) are transparently enforced using JTE lifecycle hooks (`@Validate`, `@BeforeStep`, `@AfterStep`, `@CleanUp`).
+3. **Immutable Artifacts**: Container images are built once during the CI stage. Promotions across environments (`dev` → `test` → `prod`) only retag or reassign the exact pre-verified image digest.
+4. **Git as the Single Source of Truth (GitOps)**: Jenkins handles **CI** (validation, testing, containerization, security scanning). **Argo CD** handles **CD** (declarative state synchronization with the Kubernetes cluster).
+
+### System Flow & GitOps Ecosystem
+
+```mermaid
+flowchart TD
+    subgraph Monorepo ["AtosGraduationProject (Monorepo)"]
+        AppCode["application/ (Spring Boot)"]
+        InfraCode["infra/ (Terraform)"]
+        HelmCode["helm/ (PetClinic Chart)"]
+        GitOpsCode["gitops/ (Argo CD Workloads)"]
+    end
+
+    subgraph JenkinsJTE ["Jenkins + JTE Framework"]
+        AppPipeline["app_ci Pipeline"]
+        InfraPipeline["terraform Pipeline"]
+        HelmPipeline["helm_ci Pipeline"]
+    end
+
+    subgraph AWS ["Amazon Web Services"]
+        ECR[("Amazon ECR")]
+        EKS["Amazon EKS Cluster"]
+    end
+
+    subgraph GitOpsEngine ["GitOps Delivery"]
+        ImageUpdater["Argo CD Image Updater"]
+        ArgoCD["Argo CD Controller"]
+    end
+
+    AppCode -->|changeset: application/**| AppPipeline
+    InfraCode -->|changeset: infra/**| InfraPipeline
+    HelmCode -->|changeset: helm/** or gitops/**| HelmPipeline
+
+    AppPipeline -->|Push dev-SHA image| ECR
+    ECR -->|Polls new image tags| ImageUpdater
+    ImageUpdater -->|Write-back tag bump to Git| GitOpsCode
+    GitOpsCode -->|Reconcile desired state| ArgoCD
+    ArgoCD -->|Sync Deployments| EKS
+    InfraPipeline -->|terraform apply| EKS
+```
 
 ---
 
-## Repository Structure
+## 2. Repository Structure
 
 ```
 JTE/
-├── README.md
+├── README.md                                     # Master Framework Documentation
 │
 ├── libraries/                                    # Reusable JTE Libraries
-│   │
-│   ├── npm/                                      # Node.js build & test
-│   │   ├── library_config.groovy
-│   │   └── steps/
-│   │       ├── installDeps.groovy
-│   │       ├── buildApp.groovy
-│   │       ├── npmLint.groovy
-│   │       ├── testApp.groovy
-│   │       ├── audit.groovy
-│   │       └── npmInstallTools.groovy
-│   │
-│   ├── docker/                                   # Docker image lifecycle
-│   │   ├── library_config.groovy
-│   │   └── steps/
-│   │       ├── login.groovy
-│   │       ├── buildImage.groovy
-│   │       ├── tag.groovy
-│   │       ├── push.groovy
-│   │       ├── containerValidate.groovy
-│   │       ├── cleanup.groovy
-│   │       ├── promoteDockerImage.groovy
-│   │       └── logout.groovy
-│   │
-│   ├── kubernetes/                               # Manifest updates & deployment
-│   │   ├── library_config.groovy
-│   │   └── steps/
-│   │       ├── checkOutRemoteSCM.groovy
-│   │       ├── updateManifest.groovy
-│   │       ├── gitPush.groovy
-│   │       ├── validateManifest.groovy
-│   │       ├── k8sDeploy.groovy
-│   │       └── k8sInstallTools.groovy
-│   │
-│   ├── version_manager/                          # Version registry (S3-backed)
-│   │   ├── library_config.groovy
-│   │   └── steps/
-│   │       ├── readVersion.groovy
-│   │       ├── checkVersion.groovy
-│   │       ├── registerVersion.groovy
-│   │       ├── versionGate.groovy
-│   │       └── promoteVersion.groovy
-│   │
-│   ├── terraform/                                # Infrastructure provisioning
-│   │   ├── library_config.groovy
-│   │   └── steps/
-│   │       ├── tfCheckoutCode.groovy
-│   │       ├── init.groovy
-│   │       ├── validate.groovy
-│   │       ├── checkov.groovy
-│   │       ├── plan.groovy
-│   │       ├── approval.groovy
-│   │       ├── tfDeploy.groovy
-│   │       ├── destroy.groovy
-│   │       ├── tfInstallTools.groovy
-│   │       └── archiveInventory.groovy
-│   │
-│   └── ansible/                                  # Configuration management
-│       ├── library_config.groovy
-│       └── steps/
-│           ├── ansibleCheckoutCode.groovy
-│           ├── ansibleInstallTools.groovy
-│           ├── fetchInventory.groovy
-│           ├── ansibleLint.groovy
-│           └── ansibleDeploy.groovy
+│   ├── ansible/                                  # Ansible playbook execution & inventory
+│   ├── aws/                                      # AWS STS assumeRole wrapper
+│   ├── change_detection/                         # Git diff & monorepo path analyzers
+│   ├── docker/                                   # Docker image build, validation, & push
+│   ├── ecr/                                      # AWS ECR authentication, exists, & retag
+│   ├── gitops/                                   # PR creation, value updates, guardrails
+│   ├── helm/                                     # Helm lint, template rendering, & security
+│   ├── kubernetes/                               # kubectl manifests & deployment
+│   ├── maven/                                    # Java Maven compile, package, & test
+│   ├── npm/                                      # Node.js install, test, lint, & audit
+│   ├── release/                                  # Git versioning & automated tagging
+│   ├── sonar/                                    # SonarQube Maven analysis & quality gate
+│   ├── terraform/                                # IaC init, checkov, plan, & apply
+│   ├── trivy/                                    # Container & filesystem vulnerability scanner
+│   └── version_manager/                          # S3-backed JSON version registry
 │
 └── pipelines_templates/                          # Pipeline Templates
-    └── CI_CD_Project/
-        ├── app_CI/                               # Application CI
-        │   ├── Jenkinsfile
-        │   └── pipeline_config.groovy
-        ├── app_CD/                               # Application CD (GitOps)
-        │   ├── Jenkinsfile
-        │   └── pipeline_config.groovy
-        ├── terraform_infra/                      # Infrastructure IaC
-        │   ├── Jenkinsfile
-        │   └── pipeline_config.groovy
-        └── ansible_pipeline/                       # Configuration management (consumes terraform_infra's inventory)
-            ├── Jenkinsfile
-            └── pipeline_config.groovy
+    ├── AtosGradProj/                             # Primary Graduation Project
+    │   ├── app_ci/                               # Spring Boot Application CI/CD
+    │   ├── terraform/                            # Infrastructure as Code (Terraform)
+    │   └── helm_ci/                              # Helm Chart & GitOps Validation
+    └── CI_CD_Project/                            # Reference Implementation
+        ├── app_CI/                               # Node.js Application CI
+        ├── app_CD/                               # Kubernetes Manifest Deployment CD
+        ├── terraform_infra/                      # Base Infrastructure IaC
+        └── ansible_pipeline/                     # Ansible Configuration Pipeline
 ```
 
 ---
 
-## Pipeline Workflows
+## 3. Pipeline Templates Catalog
 
-### Application CI Pipeline
+### 3.1. Atos Graduation Project: Application CI/CD (`app_ci`)
 
-The application CI pipeline (`app_CI`) is **branch-aware** and implements three distinct workflows using a single `Jenkinsfile`.
+- **Path**: `pipelines_templates/AtosGradProj/app_ci/Jenkinsfile`
+- **Configuration**: `pipelines_templates/AtosGradProj/app_ci/pipeline_config.groovy`
+- **Application**: Spring Boot Java Application (`application/`)
 
-#### Workflow 1 — Pull Request to `dev`
-
-> **Purpose**: Validate new code before merging. No artifacts leave the build agent.
-
-```
-Checkout → Install Agent Dependencies → Read Version → Version Gate
-→ Build & Test (npm) → Docker Build → Container Validation
-→ Register Version (PR_VALIDATED)
-```
-
-| What Happens | What Does NOT Happen |
-|:-------------|:---------------------|
-| [x] Version uniqueness check | [ ] No Docker login |
-| [x] npm install, lint, test, build | [ ] No image tagging |
-| [x] Docker image built locally | [ ] No image push |
-| [x] Container runtime validation | [ ] No manifest update |
-| [x] Registry updated: `PR_VALIDATED` | [ ] No deployment |
-
-#### Workflow 2 — Merge to `dev`
-
-> **Purpose**: Full CI/CD. Build the immutable artifact, push it, update manifests, and deploy to DEV.
-
-```
-Checkout → Install Agent Dependencies → Read Version → Version Gate
-→ Build & Test (npm) → Docker Build → Container Validation
-→ Login → Tag → Push → Cleanup
-→ Register Version (DEV)
-→ Checkout Manifests Repo (`main`) → Update Image Tag (sed) → Create Branch & Push → Create PR into `main`
-```
-
-#### Workflow 3 — Merge `dev` into `main`
-
-> **Purpose**: Promote the already-tested, immutable artifact to Production. Zero rebuilds.
-
-```
-Checkout → Read Version → Promote Version (PRODUCTION)
-→ Checkout Manifests Repo (`main`) → Update Image Tag (sed) → Create Branch & Push → Create PR into `main`
-```
-
-> **IMPORTANT**: This workflow does **NOT** rebuild, retest, or re-push the Docker image. It reuses the exact immutable artifact that was built and pushed during Workflow 2.
+#### Stages & Flow:
+1. **CI & Dev Stage** (Triggered on PRs and `main` branch pushes matching `application/**`):
+   - **Version Check**: Resolves short SHA and verifies the tag does not already exist in ECR (`imageExists`).
+   - **Compile**: Compiles Java source code via `./mvnw -B compile`.
+   - **Unit Test**: Executes test suites and collects Surefire reports.
+   - **SonarQube Analysis**: Runs static code analysis and enforces Quality Gate (`-Dsonar.qualitygate.wait=true`).
+   - **Maven Package**: Packages deployable JAR artifact (`./mvnw -B package -DskipTests`).
+   - **Docker Build**: Builds container image tagged with `dev-${env.GIT_SHORT_SHA}`.
+   - **Deploy to DEV**: On merges to `main`, authenticates Docker with AWS ECR and pushes the image. Argo CD Image Updater automatically syncs the DEV namespace.
+2. **Promote to TEST Stage** (Triggered by Release Candidate Tag `v*-rc`):
+   - Scans candidate image with Trivy.
+   - Retags image in AWS ECR from `dev-${GIT_SHORT_SHA}` to `test-${GIT_TAG}`.
+3. **Release to PROD Stage** (Triggered by Official Release Tag `v*`):
+   - Retags tested candidate image in AWS ECR from `test-${GIT_TAG}-rc` to `prod-${GIT_TAG}`.
 
 ---
 
-### Application CD Pipeline
+### 3.2. Atos Graduation Project: Infrastructure CI/CD (`terraform`)
 
-The application CD pipeline (`app_CD`) handles continuous deployment to Kubernetes using GitOps principles.
+- **Path**: `pipelines_templates/AtosGradProj/terraform/Jenkinsfile`
+- **Configuration**: `pipelines_templates/AtosGradProj/terraform/pipeline_config.groovy`
+- **Scope**: Terraform Infrastructure (`infra/`)
 
-#### Parameters
-
-| Parameter | Options | Description |
-|:----------|:--------|:------------|
-| `TARGET_ENVIRONMENT` | `auto`, `dev`, `prod`, `all` | Target environment to deploy. `auto` relies on changeset detection. |
-
-#### Workflow
-
-```
-Checkout Manifests → Install Agent Dependencies → Fetch Terraform Inventory
-→ Deploy to DEV (Approval Guardrail + kubectl apply)
-→ Deploy to PROD (Approval Guardrail + kubectl apply)
-```
-
-| Trigger | Behavior |
-|:--------|:---------|
-| **Changeset `dev/**`** | Prompts for approval to deploy to the DEV cluster. |
-| **Changeset `prod/**`** | Prompts for approval to deploy to the PROD cluster. |
-
-> **Note**: This CD pipeline retrieves the `inventory.ini` generated by Terraform to seamlessly map infrastructure configuration for deployments.
+#### Stages & Flow:
+1. **Checkout Code**: Retrieves infrastructure repository.
+2. **Install Tools**: Installs Checkov static analysis tool if configured.
+3. **Security Policy Gate**: Executes Checkov SAST scan inside `assumeRole`. Hard gate blocking misconfigurations.
+4. **Terraform Plan**: Runs `init` and generates a speculative binary plan (`tfplan`).
+5. **Approval Guardrail**: Halts execution for human verification before applying changes to `main`.
+6. **Execute**: Runs `deploy` (or `destroy`) within `assumeRole`. S3 lineage registers the resulting state.
 
 ---
 
-### Terraform Infrastructure Pipeline
+### 3.3. Atos Graduation Project: Helm & GitOps CI (`helm_ci`)
 
-The infrastructure pipeline uses a **single branch** (`main`) strategy with parameterized environment selection.
+- **Path**: `pipelines_templates/AtosGradProj/helm_ci/Jenkinsfile`
+- **Configuration**: `pipelines_templates/AtosGradProj/helm_ci/pipeline_config.groovy`
+- **Scope**: Helm Charts (`helm/**`) and Argo CD Manifests (`gitops/**`)
 
-#### Parameters
-
-| Parameter | Options | Description |
-|:----------|:--------|:------------|
-| `TARGET_ENVIRONMENT` | `dev`, `prod` | Selects which environment to plan/apply against |
-| `ACTION` | `apply`, `destroy` | Whether to create or tear down infrastructure |
-
-#### Workflow
-
-```
-Checkout Code → Install Dependencies (Checkov)
-→ Init → Validate → Checkov Security Scan
-→ Plan → Approval Guardrail → Deploy / Destroy
-```
-
-| Trigger | Behavior |
-|:--------|:---------|
-| **Pull Request** | Runs `init` → `validate` → `checkov` → `plan`. Does NOT apply. |
-| **Merge to `main`** | Full pipeline with manual **Approval Guardrail** before `deploy` or `destroy`, followed by `archiveInventory` (skipped on `destroy`). |
+#### Stages & Flow:
+1. **Helm Lint**: Runs `helmLint()` with strict syntax and indentation checks on `helm/petclinic`.
+2. **Template Dry-Run**: Runs `helmTemplate()`, dry-running manifest generation against base values, `dev/values.yaml`, and `prod/values.yaml`.
+3. **Security Policy Scan**: Runs `helmScan()` (Trivy config audit) against chart templates to detect privileged containers, missing security contexts, or deprecated APIs.
+4. **Post-Merge**: Once validated and merged to `main`, **Argo CD** automatically detects Git changes and syncs the live cluster.
 
 ---
 
-### Ansible Configuration Pipeline
+### 3.4. CI/CD Project: Node.js Application Pipeline (`app_CI`)
 
-Separate, single-branch (`main`) pipeline that configures the hosts Terraform provisioned. It never talks to Terraform or the cloud provider directly — it only consumes the `inventory.ini` artifact that `terraform_infra` archived.
-
-#### Parameters
-
-| Parameter | Options | Description |
-|:----------|:--------|:------------|
-| `TARGET_ENVIRONMENT` | `dev`, `prod` | Must match the `terraform_infra` run that produced the inventory being consumed |
-
-#### Workflow
-
-```
-Checkout Code → Install Dependencies (Ansible)
-→ Fetch Terraform Inventory (Copy Artifact)
-→ Syntax Check & Lint
-→ Approval Guardrail → Configure Hosts (ansible-playbook)
-```
-
-| Trigger | Behavior |
-|:--------|:---------|
-| **Pull Request** | Runs `ansibleCheckoutCode` → `ansibleInstallTools` → `fetchInventory` → `ansibleLint`. Does NOT run the playbook. |
-| **Merge to `main`** | Full pipeline with manual **Approval Guardrail** before `ansibleDeploy` runs `ansible-playbook` against the fetched inventory. |
-
-> **Dependency**: this pipeline requires the `terraform_infra` job (identified by `terraform_job_name` in its config) to have at least one successful build where `archiveInventory()` ran, since `fetchInventory()` copies its artifact from that build.
+- **Path**: `pipelines_templates/CI_CD_Project/app_CI/Jenkinsfile`
+- **Workflows**:
+  - **PR to `dev`**: Reads `VERSION`, verifies version uniqueness (`versionGate`), installs npm dependencies, runs linter and tests, builds container, validates runtime, and registers `PR_VALIDATED` in S3.
+  - **Merge to `dev`**: Builds, tests, pushes container, registers `DEV` in S3, updates manifest repo with `sed`, and opens PR into `main`.
+  - **Merge to `main`**: Promotes artifact to `PRODUCTION` in S3 and updates production manifests with zero rebuilds.
 
 ---
 
-## Libraries Reference
+### 3.5. CI/CD Project: Application Deployment Pipeline (`app_CD`)
 
-### npm Library
+- **Path**: `pipelines_templates/CI_CD_Project/app_CD/Jenkinsfile`
+- **Scope**: GitOps deployment to Kubernetes clusters using `kubectl`.
+- **Features**: Changeset-driven environment targeting (`dev/**` vs `prod/**`), manual approval gates, and deployment rollout verification.
 
-Application build and test steps for Node.js projects.
+---
 
-| Step | Description |
-|:-----|:------------|
-| `installDeps()` | Runs `npm install` |
-| `npmInstallTools()` | Installs agent dependencies (AWS CLI, kubectl CLI, Docker CLI, Git) |
-| `buildApp()` | Runs `npm run build` |
-| `npmLint()` | Runs the project linter |
-| `testApp()` | Runs `npm test` |
-| `audit()` | Runs `npm audit` |
+### 3.6. CI/CD Project: Terraform & Ansible Integration
 
-**Configuration**:
+- **Terraform Pipeline** (`terraform_infra`): Provisions cloud resources, outputs Ansible `inventory.ini`, and archives it as a Jenkins build artifact.
+- **Ansible Pipeline** (`ansible_pipeline`): Uses the Jenkins **Copy Artifact** plugin via `fetchInventory()` to pull the exact inventory generated by Terraform, runs `ansible-lint`, and executes playbooks with SSH credentials.
+
+---
+
+## 4. Libraries Reference Manual
+
+### 4.1. `aws` Library
+
+Provides AWS STS credential assumption using the Jenkins AWS Steps plugin.
+
+#### Schema (`library_config.groovy`):
 ```groovy
-npm {
-    app_dir       = '.'        // Directory containing package.json
-    install_tools = true       // Set true to install agent dependencies (aws-cli, kubectl, etc.)
+fields {
+    required {
+        aws_credentials_id = String   // Jenkins AWS credential ID
+        aws_role_arn       = String   // IAM Role ARN to assume
+        aws_region         = String   // Default AWS Region (e.g. us-east-1)
+    }
+    optional {
+        role_session_name  = String   // STS session name
+        role_duration      = Integer  // Session validity in seconds (default: 3600)
+    }
 }
 ```
 
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `assumeRole` | `assumeRole(Closure body)` | Wraps execution in `withAWS(...)`, injecting temporary STS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`) into the sub-process environment. |
+
 ---
 
-### docker Library
+### 4.2. `ecr` Library
 
-Full Docker image lifecycle management.
+Handles AWS Elastic Container Registry authentication, tag existence checks, and image promotions.
 
-| Step | Description |
-|:-----|:------------|
-| `login()` | Authenticates to Docker registry |
-| `buildImage()` | Builds Docker image, returns image reference |
-| `tag()` | Tags image with version, branch, and optional release tags |
-| `push(tags)` | Pushes list of tagged images to registry |
-| `containerValidate()` | Runs container briefly to verify it starts without crashing |
-| `cleanup(images)` | Removes local Docker images |
-| `promoteDockerImage()` | Pulls, re-tags, and pushes a Docker image to a new target tag |
-| `logout()` | Logs out of Docker registry |
-
-**Configuration**:
+#### Schema (`library_config.groovy`):
 ```groovy
-docker {
-    image_name            = 'your-registry/your-app'   // Required: full image name
-    registry_creds        = 'docker-creds-id'          // Required: Jenkins credentials ID
-    registry_url          = 'https://index.docker.io/v1/'
-    docker_file_name      = 'Dockerfile'
-    docker_file_dir       = '.'
-    validate_wait_seconds = 10       // Seconds to wait during container validation
-    // health_url          = 'http://localhost:3000/health'  // Optional health endpoint
+fields {
+    required {
+        aws_region   = String   // e.g. "us-east-1"
+        ecr_registry = String   // e.g. "069089526123.dkr.ecr.us-east-1.amazonaws.com"
+        image_name   = String   // e.g. "petclinic-project/petclinitc-app"
+    }
 }
 ```
 
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `login` | `login()` | Retrieves ECR login password and executes `docker login` for the registry. Sets `env.ECR_REGISTRY`. |
+| `imageExists` | `imageExists(Map args)` | Queries ECR (`aws ecr describe-images`). Fails fast if the tag already exists to prevent overwriting immutable tags. Properly handles `ImageNotFoundException`. |
+| `retagImage` | `retagImage(Map args)` | Copies image manifest from `source_tag` to `target_tag` within ECR via `batch-get-image` and `put-image` without pulling/pushing image layers. |
+
+#### Lifecycle Hooks (`ecrHooks.groovy`):
+- `@Validate`: Verifies `aws_region` is defined.
+- `@BeforeStep('push')`: Auto-authenticates Docker daemon with ECR via `assumeRole { login() }`.
+
 ---
 
-### kubernetes Library
+### 4.3. `docker` Library
 
-Kubernetes manifest updates and deployment via `sed` + `git push`.
+Complete Docker container lifecycle management.
 
-| Step | Description |
-|:-----|:------------|
-| `k8sInstallTools()` | Installs Kubernetes CLI (kubectl) on the agent |
-| `checkOutRemoteSCM()` | Clones the manifests repository into `manifests-repo/` |
-| `updateManifest()` | Uses `sed` to update image tags in all YAML files |
-| `validateManifest()` | Validates YAML syntax and Kubernetes schema via `kubectl apply --dry-run=client` |
-| `gitPush()` | Commits and pushes manifest changes back to the repo |
-| `k8sDeploy()` | Applies manifests via `kubectl apply` and waits for rollout |
-
-**Configuration**:
+#### Schema (`library_config.groovy`):
 ```groovy
-kubernetes {
-    manifests_repo_url  = 'https://github.com/org/manifests.git'  // Required
-    manifests_git_creds = 'github-creds'                          // Required
-    image_name          = 'your-registry/your-app'                // Required
-    manifests_branch    = 'main'
-    manifests_dir       = '.'
-    kube_creds          = 'kubeconfig-creds'
-    namespace           = 'default'
-    deployment          = 'your-app'
-    wait_for_rollout    = true
-    git_user_name       = 'jenkins-ci'
-    git_user_email      = 'jenkins@ci.local'
+fields {
+    required {
+        image_name     = String   // Repository name
+        registry_creds = String   // Docker credentials ID
+    }
+    optional {
+        registry_url          = String
+        dockerfile_path       = String
+        build_context         = String
+        container_port        = Integer
+        health_check_path     = String
+        validate_wait_seconds = Integer
+    }
 }
 ```
 
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `buildImage` | `buildImage(Map args)` | Builds Docker container image with `--pull`, tags it with full registry URL, and sets `env.IMAGE_URI`. |
+| `push` | `push(def images = null)` | Pushes image(s) to registry. If given a bare tag (e.g. `dev-SHA`), automatically resolves full registry path. Defaults to `env.IMAGE_URI` if no parameter is provided. |
+| `containerValidate` | `containerValidate(Map args)` | Runs container locally, executes HTTP health checks, checks `docker logs`, and stops container. |
+| `cleanup` | `cleanup(def images)` | Removes local Docker images to conserve agent disk space. |
+| `promoteDockerImage` | `promoteDockerImage(Map args)` | Pulls source image, re-tags to target image, and pushes. |
+| `logout` | `logout()` | Logs out of Docker registry. |
+
 ---
 
-### version_manager Library
+### 4.4. `helm` Library
 
-Manages version lifecycle with an S3-backed JSON registry. Supports optional AWS credentials or falls back to IAM role authentication.
+Linting, dry-run template rendering, and security verification for Helm charts.
 
-| Step | Description |
-|:-----|:------------|
-| `readVersion()` | Reads version from `VERSION` file, sets `env.APP_VERSION` |
-| `checkVersion()` | Checks if a version already exists in the registry for a given environment |
-| `registerVersion()` | Adds a new version record to the S3 JSON registry |
-| `versionGate()` | Blocks the pipeline if the version is already deployed to the target environment |
-| `promoteVersion()` | Validates promotion path and registers version in the next environment |
-
-**Configuration**:
+#### Schema (`library_config.groovy`):
 ```groovy
-version_manager {
-    registry_path      = 's3://your-bucket/version-registry.json'  // S3 path
-    // aws_credentials_id = 'aws-creds'   // Uncomment if agent has no IAM role
-    promotion_order    = ['DEV', 'PRODUCTION']
-    strict_promotion   = true
+fields {
+    optional {
+        chart_dir    = String   // Path to chart (default: "helm/petclinic")
+        release_name = String   // Release name (default: "petclinic")
+        value_files  = List     // Environment values overrides list
+        strict_lint  = Boolean  // Enable --strict linting (default: true)
+    }
 }
 ```
 
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `helmLint` | `helmLint(Map args)` | Runs `helm lint --strict` to ensure syntax, schema, and indentation correctness. |
+| `helmTemplate` | `helmTemplate(Map args)` | Renders base templates and tests rendering against all configured environment value files (`values-dev.yaml`, `values-prod.yaml`). |
+| `helmScan` | `helmScan(Map args)` | Runs Trivy configuration scan (`trivy config`) on the chart templates for security issues. |
+
 ---
 
-### terraform Library
+### 4.5. `maven` Library
 
-Terraform infrastructure provisioning with security scanning and approval gates.
+Build, package, test, and verification steps for Java Maven applications.
 
-| Step | Description |
-|:-----|:------------|
-| `tfInstallTools()` | Installs Checkov and other dependencies at runtime |
-| `tfCheckoutCode()` | Checks out the infrastructure repository |
-| `init()` | Runs `terraform init -reconfigure` |
-| `validate()` | Runs `terraform fmt -check` and `terraform validate` |
-| `checkov()` | Runs Checkov security scan against Terraform code |
-| `plan()` | Generates and archives a Terraform plan |
-| `approval()` | Manual approval gate before apply/destroy |
-| `tfDeploy()` | Applies the archived Terraform plan |
-| `destroy()` | Applies a destroy plan |
-| `archiveInventory()` | Archives the Ansible inventory file written by Terraform as a Jenkins build artifact |
-
-**Configuration**:
+#### Schema (`library_config.groovy`):
 ```groovy
-terraform {
-    infra_dir     = 'infrastructure'    // Directory containing .tf files
-    tf_vars       = 'aws_tfvars'        // Jenkins file credential ID for .tfvars
-    cloud_creds   = 'aws_creds'         // Jenkins credential ID for cloud provider
-    is_destroy    = false
-    install_tools = true                // Install Checkov at runtime
-    softFail      = false               // Checkov soft-fail mode
-    inventory_file = 'inventory.ini'        // Ansible inventory file Terraform writes out; archived by archiveInventory()
+fields {
+    optional {
+        app_dir       = String   // Application directory (default: ".")
+        maven_command = String   // Maven executable (default: "./mvnw" or "mvn")
+    }
 }
 ```
 
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `compileApp` | `compileApp(Map args)` | Executes `${mvnCmd} -B compile` for fast compilation failure detection. |
+| `test` | `test()` | Executes `${mvnCmd} -B test` and archives JUnit test reports. |
+| `packageApp` | `packageApp(Map args)` | Packages JAR file via `${mvnCmd} -B package -DskipTests`. |
+| `verify` | `verify()` | Runs the full Maven `verify` lifecycle phase. |
+
 ---
 
-### ansible Library
+### 4.6. `sonar` Library
 
-Configuration management against the hosts provisioned by the `terraform` library. It does not provision infrastructure itself — it consumes the inventory that Terraform produced and archived, then runs a playbook against it.
+Static application security testing (SAST) and code quality analysis.
 
-| Step | Description |
-|:-----|:------------|
-| `ansibleCheckoutCode()` | Checks out the repository containing the Ansible playbooks |
-| `ansibleInstallTools()` | Installs Ansible + `ansible-lint` and SSH client tooling on the agent |
-| `fetchInventory()` | Uses the Copy Artifact plugin to pull the `inventory.ini` artifact archived by the upstream `terraform_infra` job |
-| `ansibleLint()` | Runs `ansible-playbook --syntax-check` and `ansible-lint` against the playbook before it touches real hosts |
-| `ansibleDeploy()` | Runs `ansible-playbook` against the fetched inventory, using an SSH private key credential |
-
-**Configuration**:
+#### Schema (`library_config.groovy`):
 ```groovy
-ansible {
-    playbook_dir              = 'ansible'                       // Directory containing site.yml / roles
-    playbook_file              = 'site.yml'
-    inventory_file             = 'inventory.ini'                    // Must match terraform's inventory_file
-    ssh_creds                 = 'ansible_ssh_key'               // Jenkins SSH private key credential ID
-    terraform_job_name        = 'Atos CI-CD Project/test-infra/main' // Upstream job that archived inventory.ini
-    terraform_build_selector  = 'lastSuccessful'                // Or a specific build number
-    install_tools             = true
-    become                    = true                            // Pass --become to ansible-playbook
+fields {
+    required {
+        sonar_project        = String   // SonarQube project key
+        sonar_credentials_id = String   // Jenkins Secret text credential for token
+    }
+    optional {
+        sonar_host_url       = String   // SonarQube server URL
+        sonar_organization   = String   // SonarCloud organization
+        maven_command        = String   // Maven binary/wrapper
+        app_dir              = String   // Application subdirectory
+        enforce_quality_gate = Boolean  // Wait for Quality Gate (default: false)
+    }
 }
 ```
 
-> **How the two pipelines connect**: `terraform_infra` provisions the EC2 hosts, writes `hosts.ini` from Terraform outputs (e.g. via a `local_file` resource), and archives it with `archiveInventory()`. The separate `ansible_pipeline` pipeline then runs `fetchInventory()`, which uses the Jenkins **Copy Artifact** plugin to copy that exact `hosts.ini` from the terraform job's last successful build into its own workspace before running the playbook. This keeps the inventory Jenkins-managed and versioned per build, rather than regenerated or hand-copied between jobs.
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `scan` | `scan(Map args)` | Executes `${mvnCmd} -B sonar:sonar` with project key, host URL, and token. Automatically sets `-Dsonar.qualitygate.wait=true` when quality gate enforcement is enabled. |
 
 ---
 
-## Version Management
+### 4.7. `trivy` Library
 
-### VERSION File
+Vulnerability and security scanner for containers and filesystems.
 
-Every application source repository must contain a `VERSION` file at its root:
-
-```
-1.0.0
-```
-
-This version is used as:
-- **Docker Image Tag** (`your-registry/your-app:1.0.0`)
-- **Version Registry Entry** (tracked in S3 JSON)
-- **Deployment Version** (referenced in Kubernetes manifests)
-
-> Git commit SHAs are stored as metadata only — never used as deployment image tags.
-
-### Version Lifecycle
-
-```
-Developer bumps VERSION
-        │
-        ▼
-   PR_VALIDATED  ──(PR merged to dev)──▶  DEV  ──(dev merged to main)──▶  PRODUCTION
-```
-
----
-
-## Version Registry (S3)
-
-The version registry is a JSON file stored in Amazon S3. It tracks every version's progression through environments.
-
-### Initial Registry File
-
-Upload this to your S3 bucket to bootstrap the registry:
-
-```json
-{
-    "versions": []
+#### Schema (`library_config.groovy`):
+```groovy
+fields {
+    optional {
+        severity_threshold = String   // e.g. "CRITICAL,HIGH"
+        exit_code          = String   // Exit code on findings (e.g. "1")
+        timeout            = String   // Scan timeout (default: "20m")
+        app_dir            = String   // Scan directory
+    }
 }
 ```
 
-### Example After Pipeline Runs
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `scanFilesystem` | `scanFilesystem(Map args)` | Runs `trivy fs` on application source directory before building containers. |
+| `scanImage` | `scanImage(Map args)` | Runs `trivy image` against container image URI. Supports `fresh_pull: true` to ensure latest registry image is scanned. |
 
-```json
-{
-    "versions": [
-        {
-            "version": "1.0.0",
-            "repository": "https://github.com/org/app.git",
-            "branch": "dev",
-            "commit_sha": "abc1234",
-            "build_number": "42",
-            "timestamp": "2026-08-08T01:00:00Z",
-            "environment": "DEV",
-            "status": "PROMOTED"
-        },
-        {
-            "version": "1.0.0",
-            "repository": "https://github.com/org/app.git",
-            "branch": "main",
-            "commit_sha": "abc1234",
-            "build_number": "43",
-            "timestamp": "2026-08-08T02:00:00Z",
-            "environment": "PRODUCTION",
-            "status": "PROMOTED"
+---
+
+### 4.8. `change_detection` Library
+
+Inspects Git commits to enable path-based selective stage execution in monorepos.
+
+#### Schema (`library_config.groovy`):
+```groovy
+fields {
+    optional {
+        base_branch       = String   // Comparison branch (default: "main")
+        application_paths = List     // Patterns for application (default: ['application/**'])
+        infra_paths       = List     // Patterns for infra (default: ['infra/**'])
+        gitops_paths      = List     // Patterns for gitops (default: ['gitops/**', 'helm/**'])
+    }
+}
+```
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `changedFiles` | `changedFiles()` | Computes repository-relative list of changed files between commits or against PR target branch. Caches in `env.CHANGED_FILES`. |
+| `applicationChanged` | `applicationChanged()` | Returns `true` if files in application paths were modified. |
+| `terraformChanged` | `terraformChanged()` | Returns `true` if files in infrastructure paths were modified. |
+| `gitopsChanged` | `gitopsChanged()` | Returns `true` if files in `gitops/**` or `helm/**` were modified. |
+
+---
+
+### 4.9. `release` Library
+
+Automated semantic version calculation and Git tagging.
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `getGitVersion` | `getGitVersion(Map args)` | Sets `env.GIT_SHORT_SHA` (7-char commit hash) and `env.GIT_TAG` based on tag name, PR ID, or branch name. |
+| `createTag` | `createTag(Map args)` | Creates an annotated Git release tag and pushes it to origin using Jenkins credentials. |
+| `validateVersion` | `validateVersion(Map args)` | Validates version strings against semantic versioning regex (`^v?[0-9]+\.[0-9]+\.[0-9]+.*`). |
+
+---
+
+### 4.10. `version_manager` Library
+
+Centralized version registry backed by Amazon S3 JSON storage.
+
+#### Schema (`library_config.groovy`):
+```groovy
+fields {
+    required {
+        registry_path   = String   // S3 URI (e.g. s3://bucket/registry.json)
+        promotion_order = List     // Environments in promotion order (e.g. ['DEV', 'PROD'])
+    }
+    optional {
+        strict_promotion = Boolean // Enforce promotion order strictly
+        version_file     = String  // Name of version file (default: "VERSION")
+    }
+}
+```
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `readVersion` | `readVersion()` | Reads version string from `VERSION` file and sets `env.APP_VERSION`. |
+| `checkVersion` | `checkVersion(Map args)` | Queries S3 JSON registry to verify if version exists for target environment. |
+| `registerVersion` | `registerVersion(Map args)` | Atomically updates S3 JSON registry with build metadata, commit SHA, timestamp, and status. |
+| `versionGate` | `versionGate(Map args)` | Blocks build if version is already registered in target environment. |
+| `promoteVersion` | `promoteVersion(Map args)` | Verifies previous environment promotion prerequisites before registering in target environment. |
+
+---
+
+### 4.11. `gitops` Library
+
+PR generation, value file modification, and deployment endpoint health verification.
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `updateValues` | `updateValues(Map args)` | Replaces image tags in YAML/Helm values files using Python PyYAML/regex. |
+| `commitChanges` | `commitChanges(Map args)` | Commits manifest changes and pushes to a feature branch. |
+| `createPromotionPR` | `createPromotionPR(Map args)` | Opens a GitHub Pull Request using GitHub REST API. |
+| `approvalGuardrail` | `approvalGuardrail(Map args)` | Pauses pipeline with timeout waiting for human approval. |
+| `verifyHttpEndpoint` | `verifyHttpEndpoint(Map args)` | Polls public HTTP/S endpoint until receiving HTTP 200 OK. |
+
+---
+
+### 4.12. `kubernetes` Library
+
+Direct `kubectl` interaction and manifest repository management.
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `checkOutRemoteSCM` | `checkOutRemoteSCM(Map args)` | Clones a remote Git manifest repository into the local workspace. |
+| `updateManifest` | `updateManifest(Map args)` | Updates image tags in deployment YAML manifests. |
+| `validateManifest` | `validateManifest(Map args)` | Executes `kubectl apply --dry-run=client` to validate syntax and schema. |
+| `gitPush` | `gitPush(Map args)` | Commits and pushes changes back to the remote manifests repository. |
+| `k8sDeploy` | `k8sDeploy(Map args)` | Applies manifests to cluster via `kubectl apply -f` and waits for rollout. |
+| `k8sInstallTools` | `k8sInstallTools()` | Installs `kubectl` CLI binary on the agent at runtime. |
+
+---
+
+### 4.13. `terraform` Library
+
+HashiCorp Terraform infrastructure provisioning with security scanning.
+
+#### Schema (`library_config.groovy`):
+```groovy
+fields {
+    optional {
+        infra_dir     = String   // Directory containing .tf files (default: "infra")
+        install_tools = Boolean  // Install Checkov at runtime
+        softFail      = Boolean  // Checkov soft failure mode
+    }
+}
+```
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `init` | `init(Map args)` | Runs `terraform init -reconfigure`. |
+| `validate` | `validate()` | Runs `terraform fmt -check` and `terraform validate`. |
+| `checkov` | `checkov(Map args)` | Executes Checkov static security analysis against Terraform code. |
+| `plan` | `plan(Map args)` | Generates binary execution plan and archives it as an artifact. |
+| `deploy` | `deploy(Map args)` | Applies the approved speculative plan binary. |
+| `destroy` | `destroy(Map args)` | Executes `terraform destroy -auto-approve`. |
+| `approval` | `approval(Map args)` | Manual confirmation prompt before applying or destroying infrastructure. |
+| `checkoutCode` | `checkoutCode()` | Checks out infrastructure repository. |
+| `installTools` | `installTools()` | Installs required CLI utilities on the agent. |
+
+---
+
+### 4.14. `ansible` Library
+
+Configuration management against provisioned infrastructure.
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `ansibleCheckoutCode` | `ansibleCheckoutCode()` | Clones playbook repository. |
+| `ansibleInstallTools` | `ansibleInstallTools()` | Installs Ansible, `ansible-lint`, and SSH tooling. |
+| `fetchInventory` | `fetchInventory()` | Pulls `inventory.ini` artifact from upstream `terraform` job using Copy Artifact plugin. |
+| `ansibleLint` | `ansibleLint()` | Runs syntax validation and `ansible-lint` against playbooks. |
+| `ansibleDeploy` | `ansibleDeploy()` | Executes `ansible-playbook` with SSH credential binding. |
+
+---
+
+### 4.15. `npm` Library
+
+Node.js application build, test, and dependency management.
+
+#### Steps:
+| Step | Signature | Description |
+|:-----|:----------|:------------|
+| `installDeps` | `installDeps()` | Runs `npm install` or `npm ci`. |
+| `npmLint` | `npmLint()` | Executes linter (`npm run lint`). |
+| `testApp` | `testApp()` | Runs unit test suite (`npm test`). |
+| `buildApp` | `buildApp()` | Compiles frontend/backend application bundle (`npm run build`). |
+| `audit` | `audit()` | Runs `npm audit` security vulnerability check. |
+| `npmInstallTools` | `npmInstallTools()` | Installs agent dependencies (Node, Docker CLI, AWS CLI) at runtime. |
+
+---
+
+## 5. Cross-Cutting Architectural Patterns
+
+### 5.1. AWS STS Role Assumption & Credential Scoping
+
+`withAWS` from the Jenkins AWS Steps plugin is a **closure-scoped block step**. 
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ assumeRole {                                            │
+│   // Inside: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,  │
+│   // AWS_SESSION_TOKEN are injected in environment      │
+│   imageExists(...)                                      │
+│ }                                                       │
+│ // Outside: AWS credentials env vars are wiped!         │
+└─────────────────────────────────────────────────────────┘
+```
+
+- **Docker CLI commands** (like `docker push`) can run outside `assumeRole` once `login()` has executed, because `docker login` writes the authentication token directly to `/home/jenkins/.docker/config.json` on disk.
+- **AWS CLI commands** (`aws ecr describe-images`, `aws ecr put-image`) **must** be executed within an `assumeRole { ... }` block because they depend on active STS environment variables.
+
+### 5.2. Monorepo Path Filtering (`changeset`)
+
+To avoid triggering application packaging when only documentation or infrastructure changes:
+
+```groovy
+stage('CI & Dev') {
+    when {
+        allOf {
+            not { buildingTag() }
+            anyOf {
+                changeset "application/**"
+                branch 'main'
+            }
         }
-    ]
-}
-```
-
-### AWS Authentication
-
-The version_manager library supports two modes:
-
-1. **IAM Role (default)**: If the Jenkins agent already has AWS credentials via an IAM instance profile or task role, no additional configuration is needed.
-2. **Explicit Credentials**: Set `aws_credentials_id` in the pipeline config to use Jenkins-stored AWS credentials via `withCredentials`.
-
----
-
-## Configuration Guide
-
-### Setting Up a New Application Project
-
-1. **Create a `pipeline_config.groovy`** in your application repository root, pointing to the app CI template:
-
-```groovy
-template_sources {
-    merge = true
-}
-
-pipeline_template = 'app_CI/Jenkinsfile'
-
-libraries {
-    npm {
-        app_dir = '.'
-    }
-    docker {
-        image_name     = 'your-registry/your-app'
-        registry_creds = 'your-docker-creds-id'
-    }
-    kubernetes {
-        manifests_repo_url  = 'https://github.com/your-org/your-manifests.git'
-        manifests_git_creds = 'your-git-creds-id'
-        image_name          = 'your-registry/your-app'
-    }
-    version_manager {
-        registry_path   = 's3://your-bucket/version-registry.json'
-        promotion_order = ['DEV', 'PRODUCTION']
+        beforeAgent true
     }
 }
 ```
 
-2. **Create a `VERSION` file** in your application repository root:
+- **Tags bypass changeset**: Release promotion stages rely strictly on `when { tag pattern: "v*-rc" }` or `when { tag pattern: "v*" }` because Git tag pushes do not produce a comparative commit changeset in Jenkins.
+
+### 5.3. GitOps: CI Validation vs CD Reconciliation
+
 ```
-1.0.0
+[Developer PR] ──▶ [helm_ci Pipeline] ──▶ [Merge to main] ──▶ [Argo CD Reconciles]
+                     • helmLint()                               • Syncs Live K8s
+                     • helmTemplate()                           • Prunes & Heals
+                     • helmScan()
 ```
 
-3. **Create the S3 registry file**:
-```bash
-echo '{"versions":[]}' > version-registry.json
-aws s3 cp version-registry.json s3://your-bucket/version-registry.json
-```
-
-4. **Configure Jenkins** with the required credentials (Docker registry, GitHub, AWS, kubeconfig).
+- **Continuous Integration (Jenkins)** validates syntax, renders template dry-runs against environment value overrides, and scans charts for vulnerabilities *before* code is merged.
+- **Continuous Delivery (Argo CD)** continuously monitors Git and ensures the live Kubernetes cluster matches the declared desired state.
+- **Argo CD Image Updater** automatically updates image tags in Git when new images are pushed to ECR (`write-back-method: git`).
 
 ---
 
-## Prerequisites
+## 6. Setup, Prerequisites & Credentials
 
-### Jenkins Plugins
+### Required Jenkins Credentials
 
-| Plugin | Purpose |
-|:-------|:--------|
-| [Jenkins Templating Engine](https://plugins.jenkins.io/templating-engine/) | Core JTE framework |
-| [Pipeline: Multibranch](https://plugins.jenkins.io/workflow-multibranch/) | Branch-aware pipeline support |
-| [Git](https://plugins.jenkins.io/git/) | Git SCM integration |
-| [Credentials Binding](https://plugins.jenkins.io/credentials-binding/) | Secret management |
-| [Docker Pipeline](https://plugins.jenkins.io/docker-workflow/) | Docker agent support |
-| [Pipeline Utility Steps](https://plugins.jenkins.io/pipeline-utility-steps/) | Optional (Native Groovy `JsonSlurperClassic` is now used for JSON handling) |
-| [AWS Credentials](https://plugins.jenkins.io/aws-credentials/) | AWS credential binding (`aws()`) |
-| [Copy Artifact](https://plugins.jenkins.io/copyartifact/) | Lets the `ansible_pipeline` job pull `inventory.ini` from the `terraform_infra` job's build (`fetchInventory()`) |
-| [SSH Agent](https://plugins.jenkins.io/ssh-agent/) | Provides `sshUserPrivateKey` credential binding used by `ansibleDeploy()` |
+| Credential ID | Type | Used By | Description |
+|:--------------|:-----|:--------|:------------|
+| `petclinic-aws-credentials` | AWS Credentials | `aws/assumeRole` | IAM User credentials with permission to assume the Jenkins Terraform Role |
+| `petclinic-sonar-cred` | Secret text | `sonar/scan` | SonarQube User Authentication Token |
+| `gitops-repo-push-token` | Username/Password | `release/createTag` | GitHub Personal Access Token with repo write permissions |
 
-### Jenkins Credentials
+### Agent Prerequisites
 
-| Credential ID | Type | Purpose |
-|:-------------|:-----|:--------|
-| Docker registry creds | Username/Password | Docker login/push |
-| GitHub creds | Username/Password | Clone & push manifests repo |
-| AWS creds | AWS Credentials | S3 registry access, Terraform |
-| Kubeconfig | Secret File | Kubernetes deployment |
-| TF vars | Secret File | Terraform `.tfvars` file |
-| Ansible SSH key | SSH Username with Private Key | `ansible-playbook` connections to provisioned hosts |
-
-### Infrastructure
-
-- **Amazon S3 Bucket**: For the version registry JSON file
-- **Docker Registry**: Docker Hub, ECR, or any OCI-compatible registry
-- **Kubernetes Cluster**: Target deployment environment
-- **AWS CLI**: Installed on Jenkins agents (for S3 operations)
-
----
-
-## Getting Started
-
-1. **Clone this repository** and configure it as a JTE [Governance Tier](https://plugins.jenkins.io/templating-engine/) library source in Jenkins.
-
-2. **Create a Multibranch Pipeline** job in Jenkins pointing to your application source code repository.
-
-3. **Add the `pipeline_config.groovy`** to your application repository with the correct library configurations.
-
-4. **Add a `VERSION` file** to your application repository.
-
-5. **Bootstrap the S3 version registry**:
-   ```bash
-   echo '{"versions":[]}' | aws s3 cp - s3://your-bucket/version-registry.json
-   ```
-
-6. **Open a Pull Request** to `dev` — the pipeline will automatically validate the version and run CI.
-
-7. **Merge to `dev`** — the pipeline builds, pushes the immutable image, and updates DEV manifests.
-
-8. **Merge `dev` to `main`** — the pipeline promotes the artifact to PRODUCTION without rebuilding.
-
----
-
-## Future Improvements
-
-- **SonarQube Integration**: Adding the Sonar library for static code analysis.
-- **Trivy**: Integrating Trivy for container image vulnerability scanning.
-- **Artifact Management**: Pushing artifacts using external storage or artifact repositories.
-- **External Secrets Manager**: Handling different scenarios and environments with an external secrets manager for improved security.
+Build agents (e.g. `master` or dynamic Docker agents) require:
+- **Docker Engine & CLI**: For container builds, validation, and registry pushes.
+- **AWS CLI v2**: For ECR authentication and STS operations.
+- **Helm 3**: For chart linting and template rendering.
+- **Java 17+ & Maven**: For Spring Boot compilation (or use project `./mvnw`).
