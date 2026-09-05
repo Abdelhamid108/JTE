@@ -1,13 +1,12 @@
 void call(Map args = [:]) {
-    String repository = args.repository ?: pipelineConfig.libraries.docker.image_name
+    String repository = args.repository ?: config.image_name ?: pipelineConfig.libraries?.docker?.image_name
     String sourceTag  = args.source_tag
     String targetTag  = args.target_tag
     String region     = args.region ?: config.aws_region 
-    String registry   = config.ecr_registry ?: pipelineConfig.libraries?.docker?.registry_url ?: ''
+    String registry   = config.ecr_registry 
 
     echo "Retagging in ECR: ${repository}:${sourceTag} -> ${targetTag}"
 
-    assumeRole {
         sh """
             MANIFEST=\$(aws ecr batch-get-image \
                 --repository-name "${repository}" \
@@ -27,5 +26,4 @@ void call(Map args = [:]) {
                 --image-manifest "\$MANIFEST" \
                 --region "${region}"
         """
-    }
 }

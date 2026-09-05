@@ -55,7 +55,7 @@ pipeline {
 
                 stage('Docker Build') {
                     steps {
-                        buildImage()
+                        buildImage(tag:"dev-${env.SHORT_SHA}")
                     }
                 }
 
@@ -67,7 +67,7 @@ pipeline {
                         }
                     }
                     steps {
-                        push("dev-${env.GIT_SHORT_SHA}".toString())
+                        push("dev-${env.GIT_SHORT_SHA}")
                         sh "echo 'Deployed dev-${env.GIT_SHORT_SHA} to DEV environment via Argo CD.'"
                     }
                 }

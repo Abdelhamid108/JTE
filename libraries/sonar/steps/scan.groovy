@@ -1,22 +1,30 @@
-// steps/scan.groovy — Run SonarQube/SonarCloud analysis and enforce the quality gate
+void call(Map args = [:]) {
+    // 1. Prioritize args from Jenkinsfile, fallback to JTE config
+    String appDir     = args.app_dir ?: config.app_dir ?: '.'
+    String projectKey = args.sonar_project ?: config.sonar_project
+    String credentials= args.credentials_id ?: config.sonar_credentials_id
+    String hostUrl    = args.host_url ?: config.sonar_host_url ?: ''
+    String org        = args.organization ?: config.sonar_organization ?: ''
+    boolean enforce   = args.enforce_quality_gate ?: config.enforce_quality_gate?.toBoolean() ?: true
 
-void call() {
-    String appDir     = config.app_dir ?: pipelineConfig.libraries?.maven?.app_dir ?: '.'
-    String mvnCmd     = config.maven_command ?: pipelineConfig.libraries?.maven?.maven_command ?: 'mvn'
-    String project    = config.sonar_project
-    String orgArg     = config.sonar_organization ? "-Dsonar.organization=${config.sonar_organization}" : ''
-    String hostArg    = config.sonar_host_url     ? "-Dsonar.host.url=${config.sonar_host_url}"         : ''
-    boolean enforce   = config.enforce_quality_gate?.toBoolean() ?: false
-    String qgArg      = enforce ? "-Dsonar.qualitygate.wait=true" : ''
+    if (!projectKey) error "sonar/scan: 'sonar_project' is required."
+    if (!credentials) error "sonar/scan: 'sonar_credentials_id' is required."
 
-    echo "sonar/scan: running SonarQube analysis for project '${project}' (enforce_quality_gate=${enforce})"
+    List<String> scannerArgs = [
+        "-Dsonar.projectKey=${projectKey}",
+        "-Dsonar.sources=."
+    ]
+    if (hostUrl) scannerArgs << "-Dsonar.host.url=${hostUrl}"
+    if (org)     scannerArgs << "-Dsonar.organization=${org}"
+    if (enforce) scannerArgs << "-Dsonar.qualitygate.wait=true"
 
-    withCredentials([string(credentialsId: config.sonar_credentials_id, variable: 'SONAR_TOKEN')]) {
+    String argString = scannerArgs.join(" ")
+
+    echo "sonar/scan: Running universal SonarQube analysis for '${projectKey}'..."
+
+    withCredentials([string(credentialsId: credentials, variable: 'SONAR_TOKEN')]) {
         dir(appDir) {
-            sh "${mvnCmd} -B sonar:sonar -Dsonar.projectKey=${project} ${orgArg} ${hostArg} -Dsonar.token=\$SONAR_TOKEN ${qgArg}"
+            sh "sonar-scanner ${argString} -Dsonar.token=\$SONAR_TOKEN"
         }
     }
-
-    env.STAGE_SONAR_PASSED = 'true'
-    echo "sonar/scan: SonarQube analysis completed successfully."
 }

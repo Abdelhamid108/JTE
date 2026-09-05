@@ -7,7 +7,7 @@ void call(List imagesToClean = []) {
         imagesToClean.each { img ->
             sh "docker rmi ${img} || true"
         }
-    } else if (env.PIPELINE_IMAGE) {
-        sh "docker rmi ${env.PIPELINE_IMAGE} || true"
+    } else if (env.IMAGE_URI) {
+        sh "docker rmi ${env.IMAGE_URI} || true"
     }
 }

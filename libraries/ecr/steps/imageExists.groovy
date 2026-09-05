@@ -1,5 +1,5 @@
 boolean call(Map args = [:]) {
-    String repository = args.repository ?: pipelineConfig.libraries.docker.image_name
+    String repository = args.repository ?: config.image_name
     String tag        = args.tag
     String region     = args.region ?: config.aws_region
 

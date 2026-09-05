@@ -6,7 +6,7 @@ String call(Map args = [:]) {
 
     String registryURL = args.registry_url ?: config.registry_url
     String imageName   = args.image_name   ?: config.image_name
-    String tag         = args.tag ?: (env.GIT_TAG ? "dev-${env.GIT_TAG}" : (env.BUILD_TAG ? "dev-${env.BUILD_TAG}" : (env.APP_VERSION ?: 'latest')))
+    String tag         = args.tag ?: 'latest'
     String fullImage   = "${registryURL}/${imageName}:${tag}"
 
     echo "docker/buildImage: Building ${fullImage} (Dockerfile: ${dockerFile}, context: ${context})"
@@ -17,7 +17,6 @@ String call(Map args = [:]) {
         sh "docker build --pull -f ${dockerFile} -t ${fullImage} ."
     }
 
-    env.IMAGE_URI      = fullImage
-    env.PIPELINE_IMAGE = fullImage
+    env.IMAGE_URI = fullImage
     return fullImage
 }

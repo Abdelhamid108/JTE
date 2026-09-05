@@ -4,8 +4,7 @@ def call(Closure body) {
     String role = config.aws_role_arn
     String region = config.aws_region
 
-    String sessionName =
-        config.role_session_name ?: "jenkins-${env.BUILD_NUMBER ?: 'session'}"
+    String sessionName = "jenkins-${env.BUILD_NUMBER ?: 'session'}"
 
     int duration =
         config.role_duration ?: 3600
