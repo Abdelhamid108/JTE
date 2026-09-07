@@ -1,5 +1,10 @@
 def call(Closure body) {
 
+    if (env.AWS_ROLE_ACTIVE == 'true') {
+        echo "aws/assumeRole: role session already active (${config.aws_role_arn}), continuing..."
+        return body()
+    }
+
     String credentialsId = config.aws_credentials_id
     String role = config.aws_role_arn
     String region = config.aws_region
@@ -30,6 +35,8 @@ def call(Closure body) {
         duration: duration,
         region: region
     ) {
-        body()
+        withEnv(["AWS_ROLE_ACTIVE=true"]) {
+            body()
+        }
     }
 }

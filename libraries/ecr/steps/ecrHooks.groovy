@@ -27,9 +27,7 @@ void onBeforeStep() {
         if (srcTag && repo) {
             String fullSourceImage = registry ? "${registry}/${repo}:${srcTag}" : "${repo}:${srcTag}"
             echo "ecr [@BeforeStep 'retagImage']: Scanning source image ${fullSourceImage} with Trivy before promotion..."
-            assumeRole {
-                scanImage(image_uri: fullSourceImage, fresh_pull: true)
-            }
+            scanImage(image_uri: fullSourceImage, fresh_pull: true)
         }
     }
 }
