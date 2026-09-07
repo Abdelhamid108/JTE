@@ -588,12 +588,8 @@ stage('CI & Dev') {
     when {
         allOf {
             not { buildingTag() }
-            anyOf {
-                changeset "application/**"
-                branch 'main'
-            }
+            changeset "application/**"
         }
-        beforeAgent true
     }
 }
 ```

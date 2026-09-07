@@ -19,7 +19,6 @@ pipeline {
                 anyOf {
                     changeset "helm/**"
                     changeset "gitops/**"
-                    branch 'main'
                 }
             }
             steps {
@@ -32,7 +31,6 @@ pipeline {
                 anyOf {
                     changeset "helm/**"
                     changeset "gitops/**"
-                    branch 'main'
                 }
             }
             steps {
@@ -45,7 +43,6 @@ pipeline {
                 anyOf {
                     changeset "helm/**"
                     changeset "gitops/**"
-                    branch 'main'
                 }
             }
             steps {
