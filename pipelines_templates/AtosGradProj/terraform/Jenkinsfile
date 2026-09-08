@@ -74,7 +74,21 @@ pipeline {
             }
         }
 
-        // Stage 7: Approval Guardrail (main branch only)
+        // Stage 7: FinOps Cost Estimation (Infracost - apply only)
+        stage('FinOps Cost Estimation') {
+            agent {
+                docker {
+                    image 'infracost/infracost:ci-0.10'
+                    args "--user=root --entrypoint=''"
+                }
+            }
+            when { expression { params.ACTION != 'destroy' } }
+            steps {
+                infracost()
+            }
+        }
+
+        // Stage 8: Approval Guardrail (main branch only)
         // Releases the executor while waiting for human sign-off.
         stage('Approval Guardrail') {
             when { branch 'main'; not { changeRequest() } }
@@ -82,7 +96,7 @@ pipeline {
             steps { approval(is_destroy: params.ACTION == 'destroy') }
         }
 
-        // Stage 8: Execute Deploy / Destroy & Archive Outputs
+        // Stage 9: Execute Deploy / Destroy & Archive Outputs
         stage('Execute') {
             agent { label 'master' }
             when { branch 'main'; not { changeRequest() } }

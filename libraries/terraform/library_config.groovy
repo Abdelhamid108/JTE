@@ -16,6 +16,11 @@ fields {
         is_destroy          = Boolean
         install_tools       = Boolean
         softFail            = Boolean  // Checkov soft-fail toggle
+        infracost_api_key   = String   // Jenkins Secret text credential ID
+        monthly_cost_limit  = Float    // Monthly spend ceiling in USD
+        infracost_soft_fail = Boolean  // Soft-fail toggle for cost limit
+        github_token        = String   // Jenkins Secret text credential ID for GitHub PR commenting
+        github_repo         = String   // GitHub repository slug (e.g. owner/repo)
     }
 }
 
@@ -30,4 +35,5 @@ steps {
     destroy
     validate
     outputArtifacts
+    infracost
 }

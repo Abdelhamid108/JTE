@@ -13,12 +13,16 @@ libraries {
     }
 
     terraform {
-        infra_dir          = "infra"
-        install_tools      = true
-        softFail           = true   
-        tf_vars            = "petclinic-tfvars"
-        target_environment = "prod"
-        component_name     = "eks-cluster"
+        infra_dir           = "infra"
+        install_tools       = true
+        softFail            = true   
+        tf_vars             = "petclinic-tfvars"
+        target_environment  = "prod"
+        component_name      = "eks-cluster"
+        github_repo         = "Abdelhamid108/AtosGraduationProject"
+        infracost_api_key   = "infracost-api-key"
+        github_token        = "infracost-github-token"
+        infracost_soft_fail = true
     }
 
     version_manager {
