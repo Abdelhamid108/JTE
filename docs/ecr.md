@@ -66,7 +66,7 @@ Promotes an existing ECR image by copying its manifest from a source tag to a ta
 
 ## 3. Lifecycle Hooks (`ecrHooks.groovy`)
 
-- **`@Validate`**: Verifies that `aws_region` is present in the pipeline configuration.
+- **Schema Validation**: Required configuration keys (`aws_region`, `ecr_registry`, `image_name`) are validated natively by JTE via `library_config.groovy`.
 - **`@BeforeStep('push')`**: Auto-authenticates Docker with ECR before `push` executes via `assumeRole { login() }`.
 
 ---

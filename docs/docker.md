@@ -81,8 +81,8 @@ Direct username/password authentication against standard Docker registries (e.g.
 
 ## 3. Lifecycle Hooks (`dockerHooks.groovy`)
 
-- **`@Validate`**: Validates required configuration keys (`registry_url`, `image_name`).
-- **`@AfterStep('buildImage')`**: Automatically triggers `containerValidate()` and `scanImage()` following every successful container build.
+- **Schema Validation**: Required configuration keys (`registry_url`, `image_name`) are validated natively by JTE via `library_config.groovy`.
+- **`@AfterStep('buildImage')`**: Automatically triggers `containerValidate()` following every successful container build.
 - **`@CleanUp`**: Cleans workspace after build finishes.
 
 ---

@@ -1,9 +1,11 @@
 // library_config.groovy — Generic Docker library configuration schema
 
 fields {
-    optional {
+    required {
         image_name            = String
         registry_url          = String
+    }
+    optional {
         registry_creds        = String
         dockerfile_path       = String
         docker_file_name      = String
