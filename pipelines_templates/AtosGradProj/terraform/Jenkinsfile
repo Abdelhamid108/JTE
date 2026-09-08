@@ -34,29 +34,47 @@ pipeline {
             steps { installTools() }
         }
 
-        // Stage 3: Security Policy Gate
-        // Runs Checkov SAST scan and sets SECURITY_POLICY_PASSED=true.
-        // The @BeforeStep(deploy) hook enforces this as a hard gate if the stage is bypassed.
+        // Stage 3: Terraform Init
+        stage('Terraform Init') {
+            agent { label 'master' }
+            steps {
+                assumeRole {
+                    init()
+                }
+            }
+        }
+
+        // Stage 4: Lint & Validate (apply only)
+        stage('Lint & Validate') {
+            agent { label 'master' }
+            when { expression { params.ACTION != 'destroy' } }
+            steps {
+                validate()
+            }
+        }
+
+        // Stage 5: Security Policy Gate (Checkov - apply only)
         stage('Security Policy Gate') {
             agent { label 'master' }
+            when { expression { params.ACTION != 'destroy' } }
             steps {
                 assumeRole { checkov() }
             }
         }
 
-        // Stage 4: Terraform Init + Speculative Plan
+        // Stage 6: Terraform Plan (apply only)
         // Stashes the exact plan binary for guaranteed plan-to-apply integrity.
         stage('Terraform Plan') {
             agent { label 'master' }
+            when { expression { params.ACTION != 'destroy' } }
             steps {
                 assumeRole {
-                    init()
                     plan()
                 }
             }
         }
 
-        // Stage 5: Approval Guardrail (main branch only)
+        // Stage 7: Approval Guardrail (main branch only)
         // Releases the executor while waiting for human sign-off.
         stage('Approval Guardrail') {
             when { branch 'main'; not { changeRequest() } }
@@ -64,17 +82,19 @@ pipeline {
             steps { approval(is_destroy: params.ACTION == 'destroy') }
         }
 
-        // Stage 6: Execute Deploy / Destroy
-        // @BeforeStep hook verifies SECURITY_POLICY_PASSED before deploy() runs.
-        // @AfterStep hook registers ACTIVE or DESTROYED lineage in S3 after execution.
+        // Stage 8: Execute Deploy / Destroy & Archive Outputs
         stage('Execute') {
             agent { label 'master' }
             when { branch 'main'; not { changeRequest() } }
             steps {
                 script {
                     assumeRole {
-                        if (params.ACTION == 'destroy') { destroy() }
-                        else                            { deploy()  }
+                        if (params.ACTION == 'destroy') {
+                            destroy()
+                        } else {
+                            deploy()
+                            outputArtifacts()
+                        }
                     }
                 }
             }

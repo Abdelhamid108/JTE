@@ -1,11 +1,16 @@
-// steps/destroy.groovy — Apply a Terraform destroy plan
+// steps/destroy.groovy — Execute direct Terraform destroy
 
 void call() {
-    if (!env.TF_PLAN_FILE) {
-        error "terraform/destroy: No plan file found. Run plan() first."
-    }
-    dir(config.infra_dir) {
-        unstash 'tfplan'
-        sh "terraform apply ${env.TF_PLAN_FILE}"
+    String targetDir = config.infra_dir ?: '.'
+    echo "terraform/destroy: Executing terraform destroy..."
+    dir(targetDir) {
+        if (config.tf_vars) {
+            withCredentials([file(credentialsId: config.tf_vars, variable: 'TF_VARS_FILE')]) {
+                sh "terraform destroy -var-file=${env.TF_VARS_FILE} -auto-approve -input=false"
+            }
+        } else {
+            sh "terraform destroy -auto-approve -input=false"
+        }
     }
 }
+

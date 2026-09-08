@@ -32,20 +32,34 @@ pipeline {
             }
         }
 
-        stage('Initialize & Validate') {
+        stage('Initialize') {
             steps {
                 init()
+            }
+        }
+
+        stage('Validate & Lint') {
+            when {
+                expression { return params.ACTION != 'destroy' }
+            }
+            steps {
                 validate()
             }
         }
 
         stage('Security Scan') {
+            when {
+                expression { return params.ACTION != 'destroy' }
+            }
             steps {
                 checkov()
             }
         }
 
         stage('Plan Infrastructure') {
+            when {
+                expression { return params.ACTION != 'destroy' }
+            }
             steps {
                 plan()
             }
@@ -72,6 +86,7 @@ pipeline {
                         destroy()
                     } else {
                         tfDeploy()
+                        outputArtifacts()
                     }
                 }
             }

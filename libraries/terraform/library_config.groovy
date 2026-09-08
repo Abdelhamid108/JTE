@@ -29,4 +29,5 @@ steps {
     deploy
     destroy
     validate
+    outputArtifacts
 }
